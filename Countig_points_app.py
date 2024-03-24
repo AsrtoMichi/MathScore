@@ -304,7 +304,6 @@ class App(tk.Tk):
             if self.timer_seconds % 5 == 0:
                 for x in range(self.number_of_questions):
                     answer = self.solutions[x]
-                    print(x,  answer[4])
                     if answer[2] < self.derive:
                         answer[4] += 2
                     self.solutions[x] = answer
