@@ -301,7 +301,7 @@ class App(tk.Tk):
             if self.timer_seconds % 5 == 0:
                 self.update_entry()
 
-            if self.timer_seconds % 5 == 0:
+            if self.timer_seconds % 60 == 0:
                 for x in range(self.number_of_questions):
                     answer = self.solutions[x]
                     if answer[2] < self.derive:
