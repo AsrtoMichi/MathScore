@@ -3,11 +3,12 @@
 
 import tkinter as tk
 import json
+import pickle
 import os
 
 
 class App(tk.Tk):
-    def __init__(self, solutions, n_competitors, vantage, derive):
+    def __init__(self, solutions, n_competitors, vantage, derive, name):
 
         # starting main windows
 
@@ -25,7 +26,8 @@ class App(tk.Tk):
 
         # starting clock values
 
-        self.timer_seconds = 7200
+        self.total_time = 10
+        self.timer_seconds = self.total_time
         self.timer_status = 0
 
         # creations list points squadre
@@ -42,6 +44,12 @@ class App(tk.Tk):
             for _ in range(self.number_of_questions):
                 team_points.append([0, 0, 1])
             self.list_point.append(team_points)
+
+        # reocrd list
+        self.recording = []
+        for _ in range(self.n_competitors):
+            self.recording.append([(0, 220)])
+        self.name = name
 
         self.create_widgets()
 
@@ -155,6 +163,9 @@ class App(tk.Tk):
             self.list_point[selected_team-1] = point_team
             self.update_entry()
 
+            self.recording[selected_team-1].append(
+                (self.total_time-self.timer_seconds, self.get_total_points(selected_team-1)))
+
         except ValueError:
             self.squadre_entry.delete(0, tk.END)
             self.question_entry.delete(0, tk.END)
@@ -209,7 +220,7 @@ class App(tk.Tk):
             points_squadre = self.list_point[squadre-1]
             answer_point = points_squadre[question]
 
-            return (answer_point[1]*self.point_answer(question)-answer_point[0]*self.svantage)*answer_point[2]
+            return (answer_point[1]*self.point_answer(question-1)-answer_point[0]*self.svantage)*answer_point[2]
 
     def get_total_points(self, squadre):
         if squadre <= self.n_competitors:
@@ -223,6 +234,8 @@ class App(tk.Tk):
 
         # cratin timer
         self.timer_label = tk.Label(self, text=f"Tempo rimasto: {self.timer_seconds // 3600:02}:{(
+
+
             self.timer_seconds % 3600) // 60:02}:{self.timer_seconds % 60:02}", font=("Helvetica", 18, "bold"))
         self.timer_label.pack()
 
@@ -250,11 +263,10 @@ class App(tk.Tk):
 
         # value qustion
 
-        for z in range(self.number_of_questions*2):
-            if z % 2 == 1:
-                value_label = tk.Entry(self.points_label, width=5)
-                value_label.insert(0, str(self.point_answer((z-2)//2)))
-                value_label.grid(column=z+2, row=0, sticky=tk.W)
+        for z in range(self.number_of_questions):
+            value_label = tk.Entry(self.points_label, width=5)
+            value_label.insert(0, str(self.point_answer(z-1)))
+            value_label.grid(column=z*2+3, row=0, sticky=tk.W)
 
         for x in range(1, self.n_competitors+1):
 
@@ -293,21 +305,29 @@ class App(tk.Tk):
                                 (self.timer_seconds % 3600) // 60:02}:{self.timer_seconds % 60:02}")
 
         if self.timer_seconds > 0:
+
             self.after(1000, self.update_timer)
 
             if self.timer_seconds % 5 == 0:
                 self.update_entry()
+                print(self.recording)
 
-            if self.timer_seconds % 10 == 0:
+            if self.timer_seconds % 60 == 0:
                 for x in range(self.number_of_questions):
                     answer = self.solutions[x]
-                    if answer[2] < self.derive:
-                        answer[4] += 2
+                    if answer[2] < self.derive and self.timer_seconds <= 1800:
+                        answer[4] += 1
                         self.update_entry()
                     self.solutions[x] = answer
 
-        else:
-            self.timer_status = 0
+        if self.timer_seconds == 0 and self.timer_status == 1:
+            self.save_data(self.name, self.recording)
+            self.timer_status == 2
+
+    def save_data(self, name, data):
+
+        with open(f"{name}.json", "w") as record:
+            json.dump(data, record)
 
     def start_clock(self):
         self.update_timer()
@@ -318,13 +338,12 @@ class App(tk.Tk):
 
 if __name__ == "__main__":
 
-    current_directory = os.path.dirname(os.path.abspath(__file__))
-    file_path = current_directory+r"\config.json"
+    file_path = os.path.dirname(os.path.abspath(__file__))+r"\config.json"
 
     with open(file_path, 'r') as file:
         data = json.load(file)
 
     app = App(data['solutions'], data['squadre'],
-              data['vantage'], data['derive'])
+              data['vantage'], data['derive'], data['name'])
 
     app.mainloop()
