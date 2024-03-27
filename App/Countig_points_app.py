@@ -95,7 +95,7 @@ class App(tk.Tk):
 
         # craatition entry for data
 
-        squadre_label = tk.Label(self.jolly_GUI, text="Team numbe:")
+        squadre_label = tk.Label(self.jolly_GUI, text="Team number:")
         squadre_label.pack()
         self.squadre_entry_jolly = tk.Entry(self.jolly_GUI)
         self.squadre_entry_jolly.pack()
