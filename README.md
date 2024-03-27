@@ -3,3 +3,5 @@ The app consists of three windows: one for viewing the scores, one for entering 
 To configure, you need to create a config.json; an example is provided in the repository.
 It also saves all variations of the total points and saves that in a txt file in the same directory.
 It is possible to create a graphic whit that data with Graphic.py.
+
+App for work needs to have the dat file in their same dirctory.
