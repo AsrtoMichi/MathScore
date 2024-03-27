@@ -3,7 +3,6 @@
 
 import tkinter as tk
 import json
-import pickle
 import os
 
 
@@ -26,7 +25,7 @@ class App(tk.Tk):
 
         # starting clock values
 
-        self.total_time = 10
+        self.total_time = 7200
         self.timer_seconds = self.total_time
         self.timer_status = 0
 
@@ -310,7 +309,6 @@ class App(tk.Tk):
 
             if self.timer_seconds % 5 == 0:
                 self.update_entry()
-                print(self.recording)
 
             if self.timer_seconds % 60 == 0:
                 for x in range(self.number_of_questions):
@@ -326,8 +324,8 @@ class App(tk.Tk):
 
     def save_data(self, name, data):
 
-        with open(f"{name}.json", "w") as record:
-            json.dump(data, record)
+        with open(os.path.join(os.path.dirname(__file__), f"{name}.txt"), "w") as record:
+            record.write(str(data))
 
     def start_clock(self):
         self.update_timer()
@@ -338,7 +336,7 @@ class App(tk.Tk):
 
 if __name__ == "__main__":
 
-    file_path = os.path.dirname(os.path.abspath(__file__))+r"\config.json"
+    file_path = os.path.join(os.path.dirname(__file__), "config.json")
 
     with open(file_path, 'r') as file:
         data = json.load(file)
