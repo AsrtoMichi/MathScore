@@ -8,10 +8,9 @@ import os
 
 class App(tk.Tk):
     def __init__(self, solutions, n_competitors, vantage, derive, name):
+        super().__init__()
 
         # starting main windows
-
-        super().__init__()
         self.title("Competitors")
         self.geometry("800x300")
 
@@ -209,17 +208,17 @@ class App(tk.Tk):
             self.question_entry_jolly.delete(0, tk.END)
 
     def point_answer(self, question):
-        if question < self.number_of_questions:
+        if question <= self.number_of_questions+1:
             answer_data = self.solutions[question-1]
 
             return answer_data[4]+answer_data[3]*2
 
     def get_point_answer(self, squadre, question):
-        if question < self.number_of_questions and squadre <= self.n_competitors:
+        if question <= self.number_of_questions and squadre <= self.n_competitors:
             points_squadre = self.list_point[squadre-1]
-            answer_point = points_squadre[question]
+            answer_point = points_squadre[question-1]
 
-            return (answer_point[1]*self.point_answer(question-1)-answer_point[0]*self.svantage)*answer_point[2]
+            return (answer_point[1]*self.point_answer(question)-answer_point[0]*self.svantage)*answer_point[2]
 
     def get_total_points(self, squadre):
         if squadre <= self.n_competitors:
@@ -233,8 +232,6 @@ class App(tk.Tk):
 
         # cratin timer
         self.timer_label = tk.Label(self, text=f"Tempo rimasto: {self.timer_seconds // 3600:02}:{(
-
-
             self.timer_seconds % 3600) // 60:02}:{self.timer_seconds % 60:02}", font=("Helvetica", 18, "bold"))
         self.timer_label.pack()
 
@@ -260,11 +257,9 @@ class App(tk.Tk):
 
         # creation label points value
 
-        # value qustion
-
         for z in range(self.number_of_questions):
             value_label = tk.Entry(self.points_label, width=5)
-            value_label.insert(0, str(self.point_answer(z-1)))
+            value_label.insert(0, str(self.point_answer(z+1)))
             value_label.grid(column=z*2+3, row=0, sticky=tk.W)
 
         for x in range(1, self.n_competitors+1):
@@ -281,7 +276,7 @@ class App(tk.Tk):
                 tk.Label(self.points_label, text=f"{y+1}", width=5).grid(
                     column=y*2+2, row=x, sticky=tk.W)
 
-                point = self.get_point_answer(x, y)
+                point = self.get_point_answer(x, y+1)
                 total_num = tk.Entry(self.points_label, width=5)
                 total_num.insert(0, str(point))
                 if point < 0:
