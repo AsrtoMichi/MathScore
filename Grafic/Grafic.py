@@ -22,11 +22,11 @@ class App(tk.Tk):
             self, text="Plot graph", command=self.plot_graph)
         plot_button.pack()
 
-        self.canvas = None  # Add this line
+        self.canvas = None
 
     def plot_graph(self):
 
-        if self.canvas:  # Modify this line
+        if self.canvas:
             self.canvas.get_tk_widget().destroy()
 
         file_name = self.file_name_entry.get() + ".txt"
@@ -52,7 +52,7 @@ class App(tk.Tk):
             ax.legend()
 
             self.canvas = FigureCanvasTkAgg(
-                fig, master=self)  # Modify this line
+                fig, master=self)
             self.canvas.draw()
             self.canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
 
