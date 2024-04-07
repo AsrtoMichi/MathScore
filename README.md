@@ -6,5 +6,5 @@ It is possible to create a graphic whit that data with Graphic.py.
 
 App for work needs to have the dat file in their same dirctory.
 
-This app is app is inspired by [PHI Quadro](https://www.phiquadro.it/index.php)
+This app is app is inspired by [PHI Quadro](https://www.phiquadro.it/index.php).
 
