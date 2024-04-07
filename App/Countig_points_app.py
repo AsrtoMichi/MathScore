@@ -254,7 +254,6 @@ class Arbiter_GUI(tk.Toplevel):
                 point_team[entered_question] = {
                     "errors": errors, "status": status, "jolly": jolly, "bonus": bonus}
 
-                print(point_team[entered_question])
                 self.main.list_point[selected_team] = point_team
 
                 self.main.update_entry()
