@@ -5,11 +5,9 @@ import tkinter as tk
 from tkinter import messagebox
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
-
 class App(tk.Tk):
     def __init__(self, screenName: str | None = None, baseName: str | None = None, className: str = "Tk", useTk: bool = True, sync: bool = False, use: str | None = None) -> None:
         super().__init__(screenName, baseName, className, useTk, sync, use)
-
         self.title("Graph generator")
 
         file_name_label = tk.Label(self, text="File name:")
@@ -25,7 +23,6 @@ class App(tk.Tk):
         self.canvas = None
 
     def plot_graph(self):
-
         if self.canvas:
             self.canvas.get_tk_widget().destroy()
 
@@ -39,30 +36,32 @@ class App(tk.Tk):
             fig = plt.Figure(figsize=(6, 6), dpi=100)
             ax = fig.add_subplot(111)
 
-            for i, serie in enumerate(data):
+            color = 0
+
+            for team in data.keys():
+
+                serie = data[team]
+            
                 x, y = zip(*serie)
-                ax.step(x, y, where='post', label=f'Team {i+1}')
+                ax.step(x, y, where='post', label=team)
 
                 x_max = 7200
                 y_last = serie[-1][1]
-                ax.hlines(y_last, max(x), x_max, colors=f'C{i}')
+                ax.hlines(y_last, max(x), x_max, colors=f'C{color}')
+                color += 1
 
             ax.set_xlim(0, 7200)
             ax.set_ylim(0, 1500)
             ax.legend()
 
-            self.canvas = FigureCanvasTkAgg(
-                fig, master=self)
+            self.canvas = FigureCanvasTkAgg(fig, master=self)
             self.canvas.draw()
-            self.canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
-
+            self.canvas.get_tk_widget().pack()
         except FileNotFoundError:
-            messagebox.showerror(
-                "Error", "File not found. Please enter a valid file name.")
-
+            messagebox.showerror("Error", "File not found.")
+        except Exception as e:
+            messagebox.showerror("Error", f"An error occurred: {str(e)}")
 
 if __name__ == "__main__":
-
     app = App()
-
     app.mainloop()
