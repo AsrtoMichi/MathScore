@@ -18,8 +18,9 @@ class File:
             file_path = join(dirname(__file__), "config.json")
             with open(file_path, 'r') as file:
                 return load(file)
-        except:
+        except Exception as e:
             showerror("Error", "unable to complete congfiguration")
+            print(e)
             exit()
 
     @staticmethod
@@ -58,10 +59,6 @@ class Main(Tk):
         # name team, base point, svantge, derive
         self.name_team =  data['squad']
         self.derive = data['derive']
-
-        # data bot
-
-        self.answer = date['answer']
 
         # list point, bonus, n_fulled
 
@@ -176,14 +173,6 @@ class Main(Tk):
                         answer = self.solutions[question]
                         if answer['correct'] < self.derive and self.timer_seconds >= 1200:
                             answer['value'] += 1
-                        self.solutions[question] = answer
-
-                    for answer in self.answer:
-                        if answer['time'] == (self.total_time-self.timer_seconds)//60:
-                            self.submit_answer(
-                                answer['team'], answer['question'], answer['answer'])
-                        else:
-                            break
 
                     self.update_entry()
 
