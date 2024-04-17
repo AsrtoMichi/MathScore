@@ -8,6 +8,7 @@ from json import load
 from os import walk
 from os.path import join, dirname
 from typing import Union, List, Literal
+from pypdf import PdfReader
 from sys import exit
 
 
@@ -18,9 +19,8 @@ class File:
             file_path = join(dirname(__file__), "config.json")
             with open(file_path, 'r') as file:
                 return load(file)
-        except Exception as e:
-            showerror("Error", "unable to complete congfiguration")
-            print(e)
+        except:
+            showerror("Error", "unable to complete configuration")
             exit()
 
     @staticmethod
@@ -33,7 +33,67 @@ class File:
                 "Error", f"An error occurred:, data will be printed in the terminal.")
             print(data)
 
-   
+    class Pyscraper:
+
+        @staticmethod
+        def list_pdf(directory: str) -> List[str]:
+            try:
+                return [join(root, file) for root, dirs, files in walk(directory) for file in files if file.endswith(".pdf")]
+            except:
+                showerror("Error", f"An error occurred, unable to get old pdf.")
+
+        @staticmethod
+        def pre_analize(pdf_path: List[str]) -> List[str]:
+            return ''.join(page.extract_text() for page in PdfReader(pdf_path).pages).split("\n")
+
+        @staticmethod
+        def analize(directory: str, type: Literal["name", "jolly", "answer"], date: str) -> Union[List[str], List[dict], list]:
+            list_answer = []
+            for pdf_path in File.Pyscraper.list_pdf(directory):
+                n_question = 0
+                rows = File.Pyscraper.pre_analize(pdf_path)
+                if rows[3][-10:] == date:
+
+                    for row in rows:
+
+                        if "NOME SQUADRA" in row:
+                            name = ' '.join(row.split()[2:])
+                            if type == "name":
+                                list_answer.append(name)
+
+                        if type in ["answer", "jolly"]:
+
+                            if "DOMANDA" in row:
+                                n_question += 1
+                                if "(jolly)" in row and type == "jolly":
+                                    list_answer.append(
+
+                                        {"team": name, "question": n_question})
+                            if type == "answer" and "dopo:" in row:
+                                time_passed = int(
+                                    row.split("dopo:")[1].split()[0])
+                                list_answer.append(
+                                    {"team": name, "question": n_question, "time": time_passed, "answer": int(row[-4:])})
+
+            if type == "answer":
+                return sorted(list_answer, key=lambda d: d['time'])
+            if type in ["name", "jolly"]:
+                return list_answer
+
+        def analize_solution(pdf_path: str, date: bool = False) -> Union[List[int], str]:
+            try:
+                if not date:
+                    return [int(riga[-4:]) for riga in File.Pyscraper.pre_analize(pdf_path) if "DOMANDA" in riga]
+                else:
+                    row = File.Pyscraper.pre_analize(pdf_path)[3]
+                    if "DATA" in row:
+                        return row[-10:]
+            except:
+                showerror(
+                    "Error", f"An error occurred, unable to complete configuration.")
+                exit()
+
+
 class Main(Tk):
     def __init__(self):
         # cration Main window
@@ -47,8 +107,9 @@ class Main(Tk):
 
         data = File.get_config()
         self.solutions = {i+1: {"xm": solution,  "correct": 0, "incorrect": 0,
-                                "value": data['vantage']} for i, solution in enumerate(data['solutions'])}
+                                "value": data['vantage']} for i, solution in enumerate(File.Pyscraper.analize_solution(data['solutions_path']))}
         self.number_of_questions = len(self.solutions)
+        date = File.Pyscraper.analize_solution(data['solutions_path'], True)
 
         # genaration timer
 
@@ -57,8 +118,15 @@ class Main(Tk):
         self.timer_status = 0
 
         # name team, base point, svantge, derive
-        self.name_team =  data['squad']
+        self.name_team_real = data['squad']
+        self.name_team = self.name_team_real + \
+            File.Pyscraper.analize(data['data_old_path'], "name", date)
         self.derive = data['derive']
+
+        # data bot
+
+        self.answer = File.Pyscraper.analize(
+            data["data_old_path"], "answer", date)
 
         # list point, bonus, n_fulled
 
@@ -66,6 +134,11 @@ class Main(Tk):
                                   for question in range(self.number_of_questions)} for name in self.name_team}
         for name in self.name_team:
             self.list_point[name]["base"] = [self.number_of_questions*10]
+
+        # load old jolly
+        for jolly in File.Pyscraper.analize(
+                data['data_old_path'], "jolly", date):
+            self.list_point[jolly['team']][jolly['question']]['jolly'] = 2
 
         self.fulled = 0
 
@@ -166,22 +239,35 @@ class Main(Tk):
 
                 self.timer_seconds -= 1
                 self.timer_label.config(text=f"Time left: {self.timer_seconds // 3600:02}:{(self.timer_seconds % 3600) // 60:02}:{self.timer_seconds % 60:02}")
-
+                
                 if self.timer_seconds % 60 == 0:
 
                     for question in self.solutions.keys():
                         answer = self.solutions[question]
                         if answer['correct'] < self.derive and self.timer_seconds >= 1200:
                             answer['value'] += 1
-
+                        self.solutions[question] = answer
+                        
+                    for answer in self.answer:
+                        if answer['time'] == (self.total_time-self.timer_seconds)//60:
+                            self.submit_answer(
+                                answer['team'], answer['question'], answer['answer'])
+                            self.answer.pop(0)
+                            
+                        else:
+                            break
+                   
                     self.update_entry()
-
-                self.after(1000, self.update_timer)
+                    
+                    self.after(1000, self.update_timer)
+                    
 
             elif self.timer_seconds == 0:
                 File.save_data(self.directory_recording,
                                self.name, self.recording)
                 self.timer_status = 2
+                
+            
 
     def submit_answer(self, selected_team: str, entered_question: int, entered_answer: int):
 
@@ -275,7 +361,7 @@ class Arbiter_GUI(Toplevel):
         super().__init__(main)
 
         self.submit_answer_main = main.submit_answer
-        self.name_team = main.name_team
+        self.name_team_real = main.name_team_real
 
         # starting artiter's window
 
@@ -288,7 +374,7 @@ class Arbiter_GUI(Toplevel):
         Label(self, text="Team number:").pack()
         self.selected_team = StringVar()
         self.squadre_entry = OptionMenu(
-            self, self.selected_team, *self.name_team[0], *self.name_team)
+            self, self.selected_team, *self.name_team_real[0], *self.name_team_real)
         self.selected_team.set("")
         self.squadre_entry.pack()
 
@@ -323,7 +409,7 @@ class Jolly_GUI(Toplevel):
         super().__init__(main)
 
         self.submit_jolly_main = main.submit_jolly
-        self.name_team = main.name_team
+        self.name_team_real = main.name_team_real
 
         # starting jolly window
         self.title("Jolly")
@@ -334,7 +420,7 @@ class Jolly_GUI(Toplevel):
         Label(self, text="Team number:").pack()
         self.selected_team_jolly = StringVar()
         self.squadre_entry_jolly = OptionMenu(
-            self, self.selected_team_jolly,*self.name_team[0], *self.name_team)
+            self, self.selected_team_jolly,*self.name_team_real[0], *self.name_team_real)
         self.selected_team_jolly.set("")
         self.squadre_entry_jolly.pack()
 
@@ -368,3 +454,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
