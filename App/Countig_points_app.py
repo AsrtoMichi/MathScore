@@ -1,15 +1,22 @@
 #!/usr/bin/env pypy3
 # -*- coding: utf-8 -*-
 
+#GUI
 from tkinter import Tk, Toplevel, Canvas, StringVar, Entry, Label
 from tkinter.ttk import Frame, OptionMenu, Button, Scrollbar
 from tkinter.messagebox import showerror
+
+#stistem
+from sys import exit
+from threading import Thread
+
+#for class File
 from json import load
 from os import walk
 from os.path import join, dirname
-from typing import Union, List, Literal
+from typing import Union, List, Literal, Dict
 from pypdf import PdfReader
-from sys import exit
+
 
 
 class File:
@@ -20,7 +27,7 @@ class File:
             with open(file_path, 'r') as file:
                 return load(file)
         except:
-            showerror("Error", "unable to complete congfiguration")
+            showerror("Error", "unable to complete configuration")
             exit()
 
     @staticmethod
@@ -90,7 +97,7 @@ class File:
                         return row[-10:]
             except:
                 showerror(
-                    "Error", f"An error occurred, unable to complete congfiguration.")
+                    "Error", f"An error occurred, unable to complete configuration.")
                 exit()
 
 
@@ -186,8 +193,6 @@ class Main(Tk):
 
         self.update_entry()
 
-  
-
     def update_entry(self):
         for question in self.solutions.keys():
             value_label = Entry(self.frame_point, width=5)
@@ -225,7 +230,6 @@ class Main(Tk):
                 else:
                     total_num.configure(background="white")
                 total_num.grid(column=column*2+1, row=row, sticky="ns")
-        
 
     def start_clock(self):
         self.start_button.config(state="disabled")
@@ -239,30 +243,38 @@ class Main(Tk):
 
                 self.timer_seconds -= 1
                 self.timer_label.config(text=f"Time left: {self.timer_seconds // 3600:02}:{(self.timer_seconds % 3600) // 60:02}:{self.timer_seconds % 60:02}")
-
+                
                 if self.timer_seconds % 60 == 0:
-
-                    for question in self.solutions.keys():
-                        answer = self.solutions[question]
-                        if answer['correct'] < self.derive and self.timer_seconds >= 1200:
-                            answer['value'] += 1
-                        self.solutions[question] = answer
-
-                    for answer in self.answer:
-                        if answer['time'] == (self.total_time-self.timer_seconds)//60:
-                            self.submit_answer(
-                                answer['team'], answer['question'], answer['answer'])
-                        else:
-                            break
-
-                    self.update_entry()
-
-                self.after(1000, self.update_timer)
+                                
+                    Thread(target=self.upadte_values()).start
+                    Thread(target=self.submit_answer_bot()).start
+                                      
+                    
+                self.after(30, self.update_timer)
+                    
 
             elif self.timer_seconds == 0:
                 File.save_data(self.directory_recording,
                                self.name, self.recording)
-                self.timer_status = 2
+                self.timer_status = 2            
+            
+    def upadte_values(self):
+        for question in self.solutions.keys():
+            answer = self.solutions[question]
+            if answer['correct'] < self.derive and self.timer_seconds >= 1200:
+                answer['value'] += 1
+            self.solutions[question] = answer
+            
+    
+    def submit_answer_bot(self):
+        for answer in self.answer:
+            if answer['time'] == (self.total_time-self.timer_seconds)//60:
+                self.submit_answer(
+                    answer['team'], answer['question'], answer['answer'])
+                self.answer.pop(0)
+                
+            else:
+                break
 
     def submit_answer(self, selected_team: str, entered_question: int, entered_answer: int):
 
@@ -305,14 +317,13 @@ class Main(Tk):
                     if errors == 1:
                         incorrect += 1
 
-                # inboxing solutions
+               # inboxing solutions
             self.solutions[entered_question] = {
                 "xm": xm, "correct": correct, "incorrect": incorrect, "value": value}
 
             # inboxig points
             self.list_point[selected_team][entered_question] = {
                 "errors": errors, "status": status, "jolly": jolly, "bonus": bonus}
-            
 
             self.update_entry()
 
@@ -328,7 +339,7 @@ class Main(Tk):
                 # adding jolly
                 self.list_point[selected_team][entered_question]['jolly'] = 2
                 self.update_entry()
-
+    
     def point_answer(self, question: int) -> int:
         if question <= self.number_of_questions:
             answer_data = self.solutions[question]
@@ -387,8 +398,8 @@ class Arbiter_GUI(Toplevel):
     def submit_answer(self):
         try:
 
-            self.submit_answer_main(
-                self.selected_team.get(), int(self.question_entry.get()), int(self.answer_entry.get()))
+            Thread(target= self.submit_answer_main(
+                self.selected_team.get(), int(self.question_entry.get()), int(self.answer_entry.get()))).start
 
         except:
             pass
@@ -429,8 +440,8 @@ class Jolly_GUI(Toplevel):
     def submit_jolly(self):
 
         try:
-            self.submit_jolly_main(self.selected_team_jolly.get(), int(
-                self.question_entry_jolly.get()))
+            Thread(target= self.submit_jolly_main(self.selected_team_jolly.get(), int(
+                self.question_entry_jolly.get()))).start
 
         except:
             pass
@@ -449,3 +460,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
