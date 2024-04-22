@@ -13,6 +13,7 @@ from threading import Thread
 # class File
 from json import load
 from os.path import join, dirname
+from typing import Union
 
 class File:
 
