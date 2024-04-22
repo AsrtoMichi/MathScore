@@ -12,11 +12,8 @@ from threading import Thread
 
 # class File
 from json import load
-from os import walk
 from os.path import join, dirname
-from typing import Union, List, Literal, Dict
-from pypdf import PdfReader
-
+from typing import Union
 
 class File:
 
@@ -53,8 +50,8 @@ class Main(Tk):
         # cration solutions
 
         data = File.get_config()
-        self.solutions = {i+1: {"xm": solution, "er": solution  "correct": 0, "incorrect": 0,
-                                "value": data['vantage']} for i, solution in enumerate(data['solution']))}
+        self.solutions = {i+1: {"xm": solution, "correct": 0, "incorrect": 0,
+                                "value": data['vantage']} for i, solution in enumerate(data['solutions'])}
         self.number_of_questions = len(self.solutions)
 
 
@@ -77,10 +74,6 @@ class Main(Tk):
         for name in self.name_team:
             self.list_point[name]["base"] = [self.number_of_questions*10]
 
-        # load old jolly
-        for jolly in File.Pyscraper.analize(
-                data['data_old_path'], "jolly", date):
-            self.list_point[jolly['team']][jolly['question']]['jolly'] = 2
 
         self.fulled = 0
 
