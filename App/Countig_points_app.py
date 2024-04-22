@@ -289,7 +289,7 @@ class Arbiter_GUI(Toplevel):
         # starting artiter's window
 
         self.title("Arbiter")
-        self.geometry("500x220")
+        self.geometry("500x210")
         self.resizable(False, False)
 
         # craation entry for data
@@ -336,7 +336,7 @@ class Jolly_GUI(Toplevel):
 
         # starting jolly window
         self.title("Jolly")
-        self.geometry("500x150")
+        self.geometry("500x160")
         self.resizable(False, False)
 
         # creatition entry for data
