@@ -191,13 +191,21 @@ class Main(Tk):
                 if row%2==0:
                     index.configure(background="#59D1FF")
 
+        self.protect_columns = [column*2+2 for column in range(self.number_of_questions) ]
         self.update_entry()
 
     def update_entry(self):
+    
+        for widget in self.frame_point.winfo_children():
+            if not widget.grid_info()['column'] in self.protect_columns:
+                widget.destroy()
+            
         for question in self.solutions.keys():
             value_label = Entry(self.frame_point, width=5)
             value_label.insert(0, str(self.point_answer(question)))
             value_label.grid(column=question*2+1, row=0, sticky="ns")
+            
+            
         index_frame = sorted([(self.total_squad_point(team), team)
                              for team in self.name_team], key=lambda x: x[0], reverse=True)
         
@@ -245,36 +253,34 @@ class Main(Tk):
                 self.timer_label.config(text=f"Time left: {self.timer_seconds // 3600:02}:{(self.timer_seconds % 3600) // 60:02}:{self.timer_seconds % 60:02}")
                 
                 if self.timer_seconds % 60 == 0:
-                                
-                    Thread(target=self.upadte_values()).start
-                    Thread(target=self.submit_answer_bot()).start
-                                      
+                    Thread(target= self.bot()).start
+  
                     
-                self.after(30, self.update_timer)
+                self.after(1000, self.update_timer)
                     
 
             elif self.timer_seconds == 0:
                 File.save_data(self.directory_recording,
                                self.name, self.recording)
-                self.timer_status = 2            
+                self.timer_status = 2
+
+    def bot(self):
+        for question in self.solutions.keys(): 
+            if self.solutions[question]['correct'] < self.derive and self.timer_seconds >= 1200:
+                self.solutions[question]['value'] += 1
             
-    def upadte_values(self):
-        for question in self.solutions.keys():
-            answer = self.solutions[question]
-            if answer['correct'] < self.derive and self.timer_seconds >= 1200:
-                answer['value'] += 1
-            self.solutions[question] = answer
-            
-    
-    def submit_answer_bot(self):
+                    
         for answer in self.answer:
             if answer['time'] == (self.total_time-self.timer_seconds)//60:
                 self.submit_answer(
                     answer['team'], answer['question'], answer['answer'])
                 self.answer.pop(0)
-                
+
             else:
                 break
+            
+        self.update_entry()
+
 
     def submit_answer(self, selected_team: str, entered_question: int, entered_answer: int):
 
@@ -460,4 +466,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
