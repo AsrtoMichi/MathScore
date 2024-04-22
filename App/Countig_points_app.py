@@ -53,8 +53,8 @@ class Main(Tk):
         # cration solutions
 
         data = File.get_config()
-        self.solutions = {i+1: {"xm": solution[0], "er": solution[1]  "correct": 0, "incorrect": 0,
-                                "value": data['vantage']} for i, solution in enumerate(data['solution']))}
+        self.solutions = {i+1: {"xm": solution[0], "er": solution[1],  "correct": 0, "incorrect": 0,
+                                "value": data['vantage']} for i, solution in enumerate(data['solutions'])}
         self.number_of_questions = len(self.solutions)
 
         # genaration timer
@@ -73,10 +73,6 @@ class Main(Tk):
         for name in self.name_team:
             self.list_point[name]["base"] = [self.number_of_questions*10]
 
-        # load old jolly
-        for jolly in File.Pyscraper.analize(
-                data['data_old_path'], "jolly", date):
-            self.list_point[jolly['team']][jolly['question']]['jolly'] = 2
 
         self.fulled = 0
 
@@ -210,13 +206,14 @@ class Main(Tk):
 
     def submit_answer(self, selected_team: str, entered_question: int, entered_answer: int):
         if self.timer_status == 1:
+        
             # get specific error and jolly status
             errors, status, jolly, bonus = self.list_point[selected_team][entered_question].values()
-
+            
             # gestion error for physical competitions
             xm, er, correct, incorrect, value = self.solutions[entered_question].values()
-			
-			mi, ma = xm*(100-er)/100, xm*(100+er)/100
+            
+            mi, ma = xm*(100-er)/100, xm*(100+er)/100
 
             # if correct
             if  mi <= entered_answer <= ma:
@@ -235,7 +232,7 @@ class Main(Tk):
 
             # inboxing solutions
             self.solutions[entered_question] = {
-                "xm": xm, "er":er "correct": correct, "incorrect": incorrect, "value": value}
+                "xm": xm, "er":er, "correct": correct, "incorrect": incorrect, "value": value}
 
             # inboxing points
             self.list_point[selected_team][entered_question] = {
