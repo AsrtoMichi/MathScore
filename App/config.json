@@ -4,10 +4,9 @@
         "b",
         "c"
     ],
-    "solutions" : [1, 2, 3],
+    "solutions" : [[1, 1], [2, 2], [3,3]],
     "time": 7200,
     "vantage": 40,
-    "derive": 3,
     "name": "Gara_1",
     "directory_recording": ":\\Users\\miche\\Mathscore\\Mathscore\\Pyscraper"
 }
