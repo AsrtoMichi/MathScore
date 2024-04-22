@@ -12,11 +12,7 @@ from threading import Thread
 
 # class File
 from json import load
-from os import walk
 from os.path import join, dirname
-from typing import Union, List, Literal, Dict
-from pypdf import PdfReader
-
 
 class File:
 
