@@ -6,11 +6,11 @@ from tkinter import Tk, Toplevel, Canvas, StringVar, Entry, Label
 from tkinter.ttk import Frame, OptionMenu, Button, Scrollbar
 from tkinter.messagebox import showerror
 
-#stistem
+#os
 from sys import exit
 from threading import Thread
 
-#for class File
+# class File
 from json import load
 from os import walk
 from os.path import join, dirname
@@ -18,18 +18,16 @@ from typing import Union, List, Literal, Dict
 from pypdf import PdfReader
 
 
-
-
-
 class File:
+
     @staticmethod
     def get_config() -> dict:
         try:
             file_path = join(dirname(__file__), "config.json")
             with open(file_path, 'r') as file:
                 return load(file)
-        except:
-            showerror("Error", "unable to complete configuration")
+        except Exception as e:
+            showerror("Error", f"Unable to complete configuration.  Details: {str(e)}")
             exit()
 
     @staticmethod
@@ -37,9 +35,9 @@ class File:
         try:
             with open(join(directory, f"{name}.txt"), "w") as record:
                 record.write(str(data))
-        except:
+        except Exception as e:
             showerror(
-                "Error", f"An error occurred:, data will be printed in the terminal.")
+                "Error", f"An error occurred:, data will be printed in the terminal.  Details: {str(e)}")
             print(data)
 
     class Pyscraper:
@@ -47,13 +45,14 @@ class File:
         @staticmethod
         def list_pdf(directory: str) -> List[str]:
             try:
-                return [join(root, file) for root, dirs, files in walk(directory) for file in files if file.endswith(".pdf")]
-            except:
-                showerror("Error", f"An error occurred, unable to get old pdf.")
+                return [join(root, file) for root, _, files in walk(directory) for file in files if file.endswith(".pdf")]
+            except Exception as e:
+                showerror("Error", f"An error occurred, unable to get old pdf. Details: {str(e)}")
 
         @staticmethod
-        def pre_analize(pdf_path: List[str]) -> List[str]:
+        def pre_analize(pdf_path: str) -> List[str]:
             return ''.join(page.extract_text() for page in PdfReader(pdf_path).pages).split("\n")
+            
 
         @staticmethod
         def analize(directory: str, type: Literal["name", "jolly", "answer"], date: str) -> Union[List[str], List[dict], list]:
@@ -62,44 +61,40 @@ class File:
                 n_question = 0
                 rows = File.Pyscraper.pre_analize(pdf_path)
                 if rows[3][-10:] == date:
-
+                    name = ''
                     for row in rows:
-
                         if "NOME SQUADRA" in row:
                             name = ' '.join(row.split()[2:])
                             if type == "name":
                                 list_answer.append(name)
 
-                        if type in ["answer", "jolly"]:
-
-                            if "DOMANDA" in row:
-                                n_question += 1
-                                if "(jolly)" in row and type == "jolly":
-                                    list_answer.append(
-
-                                        {"team": name, "question": n_question})
-                            if type == "answer" and "dopo:" in row:
-                                time_passed = int(
-                                    row.split("dopo:")[1].split()[0])
-                                list_answer.append(
-                                    {"team": name, "question": n_question, "time": time_passed, "answer": int(row[-4:])})
+                        if type in ["answer", "jolly"] and "DOMANDA" in row:
+                            n_question += 1
+                            if "(jolly)" in row and type == "jolly":
+                                list_answer.append({"team": name, "question": n_question})
+                            elif type == "answer" and "dopo:" in row:
+                                time_passed = int(row.split("dopo:")[1].split()[0])
+                                list_answer.append({"team": name, "question": n_question, "time": time_passed, "answer": int(row[-4:])})
 
             if type == "answer":
                 return sorted(list_answer, key=lambda d: d['time'])
             if type in ["name", "jolly"]:
                 return list_answer
 
+        @staticmethod
         def analize_solution(pdf_path: str, date: bool = False) -> Union[List[int], str]:
             try:
-                if not date:
-                    return [int(riga[-4:]) for riga in File.Pyscraper.pre_analize(pdf_path) if "DOMANDA" in riga]
-                else:
+            
+                if date:
                     row = File.Pyscraper.pre_analize(pdf_path)[3]
-                    if "DATA" in row:
+                    if row.startswith("DATA"):
                         return row[-10:]
-            except:
-                showerror(
-                    "Error", f"An error occurred, unable to complete configuration.")
+                    
+                else:
+                    return [int(riga[-4:]) for riga in File.Pyscraper.pre_analize(pdf_path) if "DOMANDA" in riga]
+                    
+            except Exception as e:
+                showerror("Error", f"An error occurred, unable to complete configuration. Details: {str(e)}")
                 exit()
 
 
@@ -133,7 +128,7 @@ class Main(Tk):
         self.derive = data['derive']
 
         # data bot
-
+        
         self.answer = File.Pyscraper.analize(
             data["data_old_path"], "answer", date)
 
@@ -159,10 +154,16 @@ class Main(Tk):
 
         self.directory_recording = data['directory_recording']
         self.timer_label = Label(self, text=f"Time left: {self.timer_seconds // 3600:02}:{(self.timer_seconds % 3600) // 60:02}:{self.timer_seconds % 60:02}", font=("Helvetica", 18, "bold"))
+        
+        del data
+        
+        
         self.timer_label.pack()
         self.start_button = Button(
             self, text="Start", command=self.start_clock)
         self.start_button.pack()
+        
+        
 
 
         points_label = Frame(self, width=1800, height=600)
@@ -195,6 +196,7 @@ class Main(Tk):
 
         self.protect_columns = [column*2+2 for column in range(self.number_of_questions) ]
         self.update_entry()
+        
 
     def update_entry(self):
         # Clear all widgets in the frame except protected columns
@@ -255,7 +257,7 @@ class Main(Tk):
                 self.timer_label.config(text=f"Time left: {self.timer_seconds // 3600:02}:{(self.timer_seconds % 3600) // 60:02}:{self.timer_seconds % 60:02}")
                 
                 if self.timer_seconds % 60 == 0:
-                    Thread(target= self.bot()).start
+                    Thread(target = self.bot()).start
   
                     
                 self.after(1000, self.update_timer)
