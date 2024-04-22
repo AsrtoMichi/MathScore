@@ -19,6 +19,8 @@ from pypdf import PdfReader
 
 
 
+
+
 class File:
     @staticmethod
     def get_config() -> dict:
@@ -195,49 +197,49 @@ class Main(Tk):
         self.update_entry()
 
     def update_entry(self):
-    
+        # Clear all widgets in the frame except protected columns
         for widget in self.frame_point.winfo_children():
-            if not widget.grid_info()['column'] in self.protect_columns:
+            if widget.grid_info()['column'] not in self.protect_columns:
                 widget.destroy()
-            
+
+        # Create value labels for each question
         for question in self.solutions.keys():
             value_label = Entry(self.frame_point, width=5)
             value_label.insert(0, str(self.point_answer(question)))
-            value_label.grid(column=question*2+1, row=0, sticky="ns")
-            
-            
-        index_frame = sorted([(self.total_squad_point(team), team)
-                             for team in self.name_team], key=lambda x: x[0], reverse=True)
-        
+            value_label.grid(column=question * 2 + 1, row=0, sticky="ns")
 
-        for row, frame in enumerate(index_frame, 1):
+
+        # Populate team points and color-code entries
+        for row, frame in enumerate(sorted([(self.total_squad_point(team), team) for team in self.name_team], key=lambda x: x[0], reverse=True), 1):
             team = frame[1]
             name = Label(self.frame_point, text=f"{team}: ", anchor="e", width=15)
-            name.grid(
-                column=0, row=row, sticky="ns")
-            if row%2==1:
+            name.grid(column=0, row=row, sticky="ns")
+            if row % 2 == 1:
                 name.configure(background="#59D1FF")
 
             total_num = Entry(self.frame_point, width=5)
-
             total_num.insert(0, str(self.total_squad_point(team)))
-
             total_num.grid(column=1, row=row, sticky="ns")
+
             team_points = self.list_point[team]
+            color_map = {True: "green", False: "red", None: "white"}
 
-            for column, question in enumerate(team_points.keys()-['base'], 1):
-
-        
-                total_num = Entry(self.frame_point, width=5)
-                total_num.insert(0, self.point_answer_x_squad(team, question, True))
+            for column, question in enumerate(team_points.keys() - ['base'], 1):
                 
-                if self.point_answer_x_squad(team, question) < 0:
+                points = self.point_answer_x_squad(team, question)
+                
+                total_num = Entry(self.frame_point, width=5)
+                total_num.insert(0, points)
+                
+                if points < 0:
                     total_num.configure(background="red")
-                elif self.point_answer_x_squad(team, question) > 0:
+                elif points > 0:
                     total_num.configure(background="green")
                 else:
                     total_num.configure(background="white")
-                total_num.grid(column=column*2+1, row=row, sticky="ns")
+
+                total_num.grid(column=column * 2 + 1, row=row, sticky="ns")
+
 
     def start_clock(self):
         self.start_button.config(state="disabled")
@@ -283,58 +285,40 @@ class Main(Tk):
 
 
     def submit_answer(self, selected_team: str, entered_question: int, entered_answer: int):
-
         if self.timer_status == 1:
+            # get specific error and jolly status
+            errors, status, jolly, bonus = self.list_point[selected_team][entered_question].values()
 
-            # get specif n_error and golly staus
-            errors, status, jolly, bonus = self.list_point[selected_team][entered_question].values(
-            )
-
-            # gestion error for fisic competions
-            xm,  correct, incorrect, value = self.solutions[entered_question].values(
-            )
+            # gestion error for physical competitions
+            xm, correct, incorrect, value = self.solutions[entered_question].values()
 
             # if correct
             if xm == entered_answer:
                 correct += 1
                 status = 1
+                bonus = -5*correct+25 if 0 < correct < 5 else 3 if correct == 5 else bonus
 
-                if 0 < correct < 5:
-                    bonus = -5*correct+25
-                elif correct == 5:
-                    bonus = 3
                 if sum([team['status'] for team in self.list_point[selected_team].values() if 'jolly' in team]) == self.number_of_questions:
                     self.fulled += 1
-                    if self.fulled == 1:
-                        self.list_point[selected_team]['base'] += 50
-                    elif self.fulled == 2:
-                        self.list_point[selected_team]['base'] += 30
-                    elif self.fulled == 2:
-                        self.list_point[selected_team]['base'] += 20
-                    elif self.fulled == 2:
-                        self.list_point[selected_team]['base'] += 15
-                    elif self.fulled == 2:
-                        self.list_point[selected_team]['base'] += 10
+                    self.list_point[selected_team]['base'] += [50, 30, 20, 15, 10][min(self.fulled, 5) - 1]
 
             # if wrong
-            elif xm != entered_answer:
-                if status == 0:
-                    errors += 1
-                    if errors == 1:
-                        incorrect += 1
+            elif xm != entered_answer and status == 0:
+                errors += 1
+                incorrect += 1 if errors == 1 else 0
 
-               # inboxing solutions
+            # inboxing solutions
             self.solutions[entered_question] = {
                 "xm": xm, "correct": correct, "incorrect": incorrect, "value": value}
 
-            # inboxig points
+            # inboxing points
             self.list_point[selected_team][entered_question] = {
                 "errors": errors, "status": status, "jolly": jolly, "bonus": bonus}
 
             self.update_entry()
-
             self.recording[selected_team].append(
                 (self.total_time-self.timer_seconds, self.total_squad_point(selected_team)))
+
 
     def submit_jolly(self, selected_team: str, entered_question: int):
 
@@ -352,15 +336,22 @@ class Main(Tk):
             return int(answer_data['value'] + answer_data['incorrect'] * 2)
 
     def point_answer_x_squad(self, team: str, question: Union[str, int], jolly_simbol: bool = False) -> Union[int, str]:
+        # Check if the team is in the list of teams
         if team in self.name_team:
+            # Get the points of the team
             points_squadre = self.list_point[team]
+            
+            # If the question is "base", return the sum of base points
             if question == "base":
                 return sum(points_squadre['base'])
+            
+            # If the question number is within the total number of questions
             elif question <= self.number_of_questions:
+                # Get the points for the specific question
                 answer_point = points_squadre[question]
-                output = ((answer_point['status'] * self.point_answer(question) -
-                          answer_point['errors'] * 10+answer_point['bonus']) * answer_point['jolly'])
-                return str(output) + " J" if answer_point['jolly'] == 2 and jolly_simbol else int(output)
+                
+                # Calculate the output points
+                return ((answer_point['status'] * self.point_answer(question) - answer_point['errors'] * 10 + answer_point['bonus']) * answer_point['jolly'])
 
     def total_squad_point(self, team: str) -> int:
         if team in self.name_team:
