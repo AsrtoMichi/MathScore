@@ -14,10 +14,8 @@ from functools import lru_cache
 # class File
 from configparser import ConfigParser
 from ast import literal_eval
-from os import walk
 from os.path import join, dirname
-from typing import Union, List, Literal, Dict
-from pypdf import PdfReader
+from typing import Union
 
 class File:
 
@@ -31,10 +29,15 @@ class File:
                 'teams': config.get('Teams', 'teams').split(", "),
                 'time':  config.getint('Competition', 'time'),
                 'vantage': config.getint('Competition', 'vantage'),
-                'solutions': literal_eval(config.getint('Solutions', 'solutions')),
+                'solutions': literal_eval(config.get('Solutions', 'solutions')),
                 'name_file': config.get('Recording', 'name_file'),
                 'directory_recording': config.get('Recording', 'directory_recording')      
             }
+        except Exception as e:
+            print (e)
+            showerror("Error", f"Unable to complete configuration.  Details: {str(e)}")
+            exit()
+
 
     @staticmethod
     def save_data(directory: str, name: str, data: dict):
