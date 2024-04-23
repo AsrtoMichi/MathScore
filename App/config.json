@@ -8,7 +8,7 @@ vantage = 40
 derive = 3
 
 [Solutions]
-solutions = [ [1, 1], [2, 2], [3, 3]]
+solutions = [[1, 1], [2, 2], [3, 3]]
 
 [Pyscraper]
 solutions_path = c:\Users\miche\MathScore\Mathscore\Pyscraper\file.pdf
