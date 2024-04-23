@@ -13,30 +13,33 @@ from functools import lru_cache
 
 # class File
 from configparser import ConfigParser
-from ast import literal_eval
+from ast import literal_evas
 from os.path import join, dirname
 from typing import Union
+
 class File:
 
     @staticmethod
     def get_config() -> dict:
-        try:
-            config = ConfigParser()
-            config.read(join(dirname(__file__), "config.ini"))
-            
-            return {
-                'teams': config.get('Teams', 'teams').split(", "),
-                'time':  config.getint('Competition', 'time'),
-                'vantage': config.getint('Competition', 'vantage'),
-                'derive': config.getint('Competition', 'derive'),
-                'solutions': literal_eval(config.getint('Solutions', 'solutions')),
-                'name_file': config.get('Recording', 'name_file'),
-                'directory_recording': config.get('Recording', 'directory_recording')      
-            }
+        #try:
+        config = ConfigParser()
+        config.read(join(dirname(__file__), "config.ini"))
+        
+        
+        return {
+            'teams': config.get('Teams', 'teams').split(", "),
+            'time':  config.getint('Competition', 'time'),
+            'vantage': config.getint('Competition', 'vantage'),
+            'derive': config.getint('Competition', 'derive'),
+            'solutions': literal_eval(config.get('Solutions', 'solutions')),
+            'name_file': config.get('Recording', 'name_file'),
+            'directory_recording': config.get('Recording', 'directory_recording')      
+        }
 
-        except Exception as e:
-            showerror("Error", f"Unable to complete configuration.  Details: {str(e)}")
-            exit()
+        #except Exception as e:
+         #   print (e)
+          #  showerror("Error", f"Unable to complete configuration.  Details: {str(e)}")
+           # exit()
 
     @staticmethod
     def save_data(directory: str, name: str, data: dict):
