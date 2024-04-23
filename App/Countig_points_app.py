@@ -31,7 +31,7 @@ class File:
                 'time':  config.getint('Competition', 'time'),
                 'vantage': config.getint('Competition', 'vantage'),
                 'derive': config.getint('Competition', 'derive'),
-                'solutions': config.getint('Solutions', 'derive').split(", "),
+                'solutions': config.getint('Solutions', 'solutions').split(", "),
                 'name_file': config.get('Recording', 'name_file'),
                 'directory_recording': config.get('Recording', 'directory_recording')      
             }
