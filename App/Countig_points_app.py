@@ -490,4 +490,4 @@ def main():
     jolly.mainloop()
     
 if __name__ == "__main__":
-    run('main()')
+    main()
