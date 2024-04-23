@@ -9,23 +9,34 @@ from tkinter.messagebox import showerror
 #os
 from sys import exit
 from threading import Thread
+from functools import lru_cache
 
 # class File
-from json import load
+from configparser import ConfigParser
 from os import walk
 from os.path import join, dirname
 from typing import Union, List, Literal, Dict
 from pypdf import PdfReader
-
 
 class File:
 
     @staticmethod
     def get_config() -> dict:
         try:
-            file_path = join(dirname(__file__), "config.json")
-            with open(file_path, 'r') as file:
-                return load(file)
+            config = ConfigParser()
+            config.read(join(dirname(__file__), "config.ini"))
+            
+            return {
+                'teams': config.get('Teams', 'teams').split(", "),
+                'time':  config.getint('Competition', 'time'),
+                'vantage': config.getint('Competition', 'vantage'),
+                'derive': config.getint('Competition', 'derive'),
+                'solutions_path': config.get('Pyscraper', 'solutions_path'),
+                'data_old_path': config.get('Pyscraper', 'data_old_path'),
+                'name_file': config.get('Recording', 'name_file'),
+                'directory_recording': config.get('Recording', 'directory_recording')      
+            }
+
         except Exception as e:
             showerror("Error", f"Unable to complete configuration.  Details: {str(e)}")
             exit()
@@ -48,38 +59,65 @@ class File:
                 return [join(root, file) for root, _, files in walk(directory) for file in files if file.endswith(".pdf")]
             except Exception as e:
                 showerror("Error", f"An error occurred, unable to get old pdf. Details: {str(e)}")
-
+                
         @staticmethod
+        @lru_cache
         def pre_analize(pdf_path: str) -> List[str]:
             return ''.join(page.extract_text() for page in PdfReader(pdf_path).pages).split("\n")
             
 
         @staticmethod
-        def analize(directory: str, type: Literal["name", "jolly", "answer"], date: str) -> Union[List[str], List[dict], list]:
-            list_answer = []
+        def analize(directory: str, date: str):
+            """
+            Analyzes PDF files in the specified directory and extracts relevant information.
+
+            Args:
+                directory (str): Path to the directory containing PDF files.
+                date (str): Target date for analysis.
+
+            Returns:
+                dict: A dictionary containing extracted data.
+                    - 'names': List of team names.
+                    - 'jolly': List of tuples (team name, question number) for jolly questions.
+                    - 'answer': List of tuples (team name, question number, time taken, points earned).
+            """
+            
+            list_answer = {'names': [], 'jolly': [], 'answer': []}
+            
             for pdf_path in File.Pyscraper.list_pdf(directory):
                 n_question = 0
+                
                 rows = File.Pyscraper.pre_analize(pdf_path)
-                if rows[3][-10:] == date:
-                    name = ''
+
+                try:
+                    rows.remove(" ")
+                    rows.remove("")
+                except ValueError:
+                    pass
+                    
+                if rows[2][-10:] == date:
+
+                    list_answer['names'].append(' '.join(rows[3].split()[2:]))
+
                     for row in rows:
-                        if "NOME SQUADRA" in row:
-                            name = ' '.join(row.split()[2:])
-                            if type == "name":
-                                list_answer.append(name)
+                    
+                        row = row.strip()
+                        
+                        if row.startswith("DOMANDA"):
+                            n_question += 1                   
 
-                        if type in ["answer", "jolly"] and "DOMANDA" in row:
-                            n_question += 1
-                            if "(jolly)" in row and type == "jolly":
-                                list_answer.append({"team": name, "question": n_question})
-                            elif type == "answer" and "dopo:" in row:
-                                time_passed = int(row.split("dopo:")[1].split()[0])
-                                list_answer.append({"team": name, "question": n_question, "time": time_passed, "answer": int(row[-4:])})
+                            if row [12:17] == "jolly":
+                                list_answer['jolly'].append((list_answer['names'][-1], n_question))
+                                
+                        elif row.startswith("dopo:"):
+                        
+                            time_taken = int(row.split("dopo:")[1].split()[0])
+                            points_earned = int(row[-4:])
+                            list_answer['answer'].append((list_answer['names'][-1], n_question, time_taken, points_earned))
 
-            if type == "answer":
-                return sorted(list_answer, key=lambda d: d['time'])
-            if type in ["name", "jolly"]:
-                return list_answer
+            list_answer['answer'].sort(key=lambda d: d[2])
+            
+            return list_answer
 
         @staticmethod
         def analize_solution(pdf_path: str, date: bool = False) -> Union[List[int], str]:
@@ -110,10 +148,13 @@ class Main(Tk):
         # cration solutions
 
         data = File.get_config()
-        self.solutions = {i+1: {"xm": solution,  "correct": 0, "incorrect": 0,
-                                "value": data['vantage']} for i, solution in enumerate(File.Pyscraper.analize_solution(data['solutions_path']))}
-        self.number_of_questions = len(self.solutions)
         date = File.Pyscraper.analize_solution(data['solutions_path'], True)
+        data_old = File.Pyscraper.analize(data['data_old_path'], date)
+        
+        
+        self.solutions = {i+1: {"xm": solution,  "correct": 0, "incorrect": 0, "value": data['vantage']} for i, solution in enumerate(File.Pyscraper.analize_solution(data['solutions_path']))}
+       
+        self.number_of_questions = len(self.solutions)
 
         # genaration timer
 
@@ -122,15 +163,14 @@ class Main(Tk):
         self.timer_status = 0
 
         # name team, base point, svantge, derive
-        self.name_team_real = data['squad']
-        self.name_team = self.name_team_real + \
-            File.Pyscraper.analize(data['data_old_path'], "name", date)
+        self.name_team_real = data['teams']
+        self.name_team = self.name_team_real + data_old['names']
+            
         self.derive = data['derive']
 
         # data bot
         
-        self.answer = File.Pyscraper.analize(
-            data["data_old_path"], "answer", date)
+        self.answer = data_old['answer']
 
         # list point, bonus, n_fulled
 
@@ -140,31 +180,27 @@ class Main(Tk):
             self.list_point[name]["base"] = [self.number_of_questions*10]
 
         # load old jolly
-        for jolly in File.Pyscraper.analize(
-                data['data_old_path'], "jolly", date):
-            self.list_point[jolly['team']][jolly['question']]['jolly'] = 2
+        for jolly in data_old["jolly"]:
+            self.list_point[jolly[0]][jolly[1]]['jolly'] = 2
 
         self.fulled = 0
 
         # data recording
         self.recording = {name: [(0, 220)] for name in self.name_team}
-        self.name = data['name']
+        self.name_file = data['name_file']
 
         # creation clock
 
         self.directory_recording = data['directory_recording']
         self.timer_label = Label(self, text=f"Time left: {self.timer_seconds // 3600:02}:{(self.timer_seconds % 3600) // 60:02}:{self.timer_seconds % 60:02}", font=("Helvetica", 18, "bold"))
         
-        del data
+        del data, data_old
         
         
         self.timer_label.pack()
         self.start_button = Button(
             self, text="Start", command=self.start_clock)
         self.start_button.pack()
-        
-        
-
 
         points_label = Frame(self, width=1800, height=600)
         points_label.pack(pady=20)
@@ -197,7 +233,6 @@ class Main(Tk):
         self.protect_columns = [column*2+2 for column in range(self.number_of_questions) ]
         self.update_entry()
         
-
     def update_entry(self):
         # Clear all widgets in the frame except protected columns
         for widget in self.frame_point.winfo_children():
@@ -247,7 +282,7 @@ class Main(Tk):
         self.start_button.config(state="disabled")
         self.timer_status = 1
         self.update_timer()
-
+        
     def update_timer(self):
         if self.timer_status == 1:
 
@@ -265,7 +300,7 @@ class Main(Tk):
 
             elif self.timer_seconds == 0:
                 File.save_data(self.directory_recording,
-                               self.name, self.recording)
+                               self.name_file, self.recording)
                 self.timer_status = 2
 
     def bot(self):
@@ -285,7 +320,7 @@ class Main(Tk):
             
         self.update_entry()
 
-
+    
     def submit_answer(self, selected_team: str, entered_question: int, entered_answer: int):
         if self.timer_status == 1:
             # get specific error and jolly status
@@ -330,13 +365,12 @@ class Main(Tk):
             if sum([team['jolly'] for team in self.list_point[selected_team].values() if 'jolly' in team]) == self.number_of_questions:
                 # adding jolly
                 self.list_point[selected_team][entered_question]['jolly'] = 2
-                self.update_entry()
-    
+                self.update_entry()          
     def point_answer(self, question: int) -> int:
         if question <= self.number_of_questions:
             answer_data = self.solutions[question]
             return int(answer_data['value'] + answer_data['incorrect'] * 2)
-
+    
     def point_answer_x_squad(self, team: str, question: Union[str, int], jolly_simbol: bool = False) -> Union[int, str]:
         # Check if the team is in the list of teams
         if team in self.name_team:
@@ -435,7 +469,6 @@ class Jolly_GUI(Toplevel):
 
         Button(self, text="Submit",
                command=self.submit_jolly).pack(pady=15)
-
     def submit_jolly(self):
 
         try:
@@ -454,8 +487,10 @@ def main():
     jolly = Jolly_GUI(root)
     del root, arbiter
 
-    jolly.mainloop()
+    # jolly.mainloop()
+    
+from cProfile import run
 
 
 if __name__ == "__main__":
-    main()
+    run('main()')
