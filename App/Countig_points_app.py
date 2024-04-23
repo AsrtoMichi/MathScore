@@ -14,11 +14,8 @@ from functools import lru_cache
 # class File
 from configparser import ConfigParser
 from ast import literal_eval
-from os import walk
 from os.path import join, dirname
-from typing import Union, List, Literal, Dict
-from pypdf import PdfReader
-
+from typing import Union
 class File:
 
     @staticmethod
