@@ -13,33 +13,33 @@ from functools import lru_cache
 
 # class File
 from configparser import ConfigParser
-from ast import literal_evas
+from ast import literal_eval
+from os import walk
 from os.path import join, dirname
-from typing import Union
+from typing import Union, List, Literal, Dict
+from pypdf import PdfReader
 
 class File:
 
     @staticmethod
     def get_config() -> dict:
-        #try:
-        config = ConfigParser()
-        config.read(join(dirname(__file__), "config.ini"))
-        
         try:
+            config = ConfigParser()
+            config.read(join(dirname(__file__), "config.ini"))
+            
             return {
                 'teams': config.get('Teams', 'teams').split(", "),
                 'time':  config.getint('Competition', 'time'),
                 'vantage': config.getint('Competition', 'vantage'),
-                'derive': config.getint('Competition', 'derive'),
                 'solutions': literal_eval(config.get('Solutions', 'solutions')),
                 'name_file': config.get('Recording', 'name_file'),
                 'directory_recording': config.get('Recording', 'directory_recording')      
             }
-
         except Exception as e:
             print (e)
             showerror("Error", f"Unable to complete configuration.  Details: {str(e)}")
             exit()
+
 
     @staticmethod
     def save_data(directory: str, name: str, data: dict):
@@ -60,14 +60,14 @@ class Main(Tk):
         self.title("Competitors")
         self.geometry(f"1850x630")
         self.resizable(False, False)
+        self.iconbitmap(join(dirname(__file__), "MathScore.ico"))
 
         # cration solutions
 
         data = File.get_config()
-        self.solutions = {i+1: {"xm": solution, "correct": 0, "incorrect": 0,
+        self.solutions = {i+1: {"xm": solution[0], "er": solution[1],  "correct": 0, "incorrect": 0,
                                 "value": data['vantage']} for i, solution in enumerate(data['solutions'])}
         self.number_of_questions = len(self.solutions)
-
 
         # genaration timer
 
@@ -75,12 +75,9 @@ class Main(Tk):
         self.timer_seconds = self.total_time
         self.timer_status = 0
 
-        # name team, base point, svantge, derive
+        # name team, base point, svantge
         self.name_team = data['teams']
            
-        self.derive = data['derive']
-
-
         # list point, bonus, n_fulled
 
         self.list_point = {name: {question+1: {"errors": 0, "status": 0, "jolly": 1, "bonus": 0}
@@ -94,10 +91,10 @@ class Main(Tk):
         # data recording
         self.recording = {name: [(0, 220)] for name in self.name_team}
         self.name_file = data['name_file']
-        self.directory_recording = data['directory_recording']
 
         # creation clock
-       
+
+        self.directory_recording = data['directory_recording']
         self.timer_label = Label(self, text=f"Time left: {self.timer_seconds // 3600:02}:{(self.timer_seconds % 3600) // 60:02}:{self.timer_seconds % 60:02}", font=("Helvetica", 18, "bold"))
         
         del data
@@ -105,9 +102,9 @@ class Main(Tk):
         self.timer_label.pack()
         self.start_button = Button(
             self, text="Start", command=self.start_clock)
-        self.start_button.pack()     
-
-
+        self.start_button.pack()
+        
+        
         points_label = Frame(self, width=1800, height=600)
         points_label.pack(pady=20)
 
@@ -207,27 +204,31 @@ class Main(Tk):
 
             elif self.timer_seconds == 0:
                 File.save_data(self.directory_recording,
-                               self.name, self.recording)
+                               self.name_file, self.recording)
                 self.timer_status = 2
 
     def bot(self):
         for question in self.solutions.keys(): 
             if self.solutions[question]['correct'] < self.derive and self.timer_seconds >= 1200:
                 self.solutions[question]['value'] += 1
-                      
+            
+                             
         self.update_entry()
 
 
     def submit_answer(self, selected_team: str, entered_question: int, entered_answer: int):
         if self.timer_status == 1:
+        
             # get specific error and jolly status
             errors, status, jolly, bonus = self.list_point[selected_team][entered_question].values()
-
+            
             # gestion error for physical competitions
-            xm, correct, incorrect, value = self.solutions[entered_question].values()
+            xm, er, correct, incorrect, value = self.solutions[entered_question].values()
+            
+            mi, ma = xm*(100-er)/100, xm*(100+er)/100
 
             # if correct
-            if xm == entered_answer:
+            if  mi <= entered_answer <= ma:
                 correct += 1
                 status = 1
                 bonus = -5*correct+25 if 0 < correct < 5 else 3 if correct == 5 else bonus
@@ -243,7 +244,7 @@ class Main(Tk):
 
             # inboxing solutions
             self.solutions[entered_question] = {
-                "xm": xm, "correct": correct, "incorrect": incorrect, "value": value}
+                "xm": xm, "er":er, "correct": correct, "incorrect": incorrect, "value": value}
 
             # inboxing points
             self.list_point[selected_team][entered_question] = {
@@ -305,6 +306,7 @@ class Arbiter_GUI(Toplevel):
         self.title("Arbiter")
         self.geometry("500x210")
         self.resizable(False, False)
+        self.iconbitmap(join(dirname(__file__), "MathScore.ico"))
 
         # craation entry for data
 
@@ -352,6 +354,7 @@ class Jolly_GUI(Toplevel):
         self.title("Jolly")
         self.geometry("500x160")
         self.resizable(False, False)
+        self.iconbitmap(join(dirname(__file__), "MathScore.ico"))
 
         # creatition entry for data
         Label(self, text="Team number:").pack()
