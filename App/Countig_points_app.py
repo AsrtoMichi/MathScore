@@ -90,8 +90,7 @@ class File:
                 rows = File.Pyscraper.pre_analize(pdf_path)
 
                 try:
-                    rows.remove(" ")
-                    rows.remove("")
+                    rows.remove(" ").remove("")
                 except ValueError:
                     pass
                     
