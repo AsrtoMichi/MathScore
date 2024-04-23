@@ -9,23 +9,32 @@ from tkinter.messagebox import showerror
 #os
 from sys import exit
 from threading import Thread
+from functools import lru_cache
 
 # class File
-from json import load
+from configparser import ConfigParser
+from os import walk
 from os.path import join, dirname
-from typing import Union
+from typing import Union, List, Literal, Dict
+from pypdf import PdfReader
 
 class File:
 
     @staticmethod
     def get_config() -> dict:
         try:
-            file_path = join(dirname(__file__), "config.json")
-            with open(file_path, 'r') as file:
-                return load(file)
-        except Exception as e:
-            showerror("Error", f"Unable to complete configuration.  Details: {str(e)}")
-            exit()
+            config = ConfigParser()
+            config.read(join(dirname(__file__), "config.ini"))
+            
+            return {
+                'teams': config.get('Teams', 'teams').split(", "),
+                'time':  config.getint('Competition', 'time'),
+                'vantage': config.getint('Competition', 'vantage'),
+                'derive': config.getint('Competition', 'derive'),
+                'solutions': config.getint('Solutions', 'solutions').split(", "),
+                'name_file': config.get('Recording', 'name_file'),
+                'directory_recording': config.get('Recording', 'directory_recording')      
+            }
 
     @staticmethod
     def save_data(directory: str, name: str, data: dict):
@@ -61,7 +70,7 @@ class Main(Tk):
         self.timer_status = 0
 
         # name team, base point, svantge
-        self.name_team = data['squad']
+        self.name_team = data['teams']
            
         # list point, bonus, n_fulled
 
@@ -75,7 +84,7 @@ class Main(Tk):
 
         # data recording
         self.recording = {name: [(0, 220)] for name in self.name_team}
-        self.name = data['name']
+        self.name_file = data['name_file']
 
         # creation clock
 
@@ -189,7 +198,7 @@ class Main(Tk):
 
             elif self.timer_seconds == 0:
                 File.save_data(self.directory_recording,
-                               self.name, self.recording)
+                               self.name_file, self.recording)
                 self.timer_status = 2
 
     def bot(self):
