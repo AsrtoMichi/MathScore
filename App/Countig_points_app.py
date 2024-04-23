@@ -143,6 +143,7 @@ class Main(Tk):
         self.title("Competitors")
         self.geometry(f"1850x630")
         self.resizable(False, False)
+        self.iconbitmap(join(dirname(__file__), "MathScore.ico"))
 
         # cration solutions
 
@@ -406,6 +407,7 @@ class Arbiter_GUI(Toplevel):
         self.title("Arbiter")
         self.geometry("500x210")
         self.resizable(False, False)
+        self.iconbitmap(join(dirname(__file__), "MathScore.ico"))
 
         # craation entry for data
 
@@ -453,6 +455,7 @@ class Jolly_GUI(Toplevel):
         self.title("Jolly")
         self.geometry("500x160")
         self.resizable(False, False)
+        self.iconbitmap(join(dirname(__file__), "MathScore.ico"))
 
         # creatition entry for data
         Label(self, text="Team number:").pack()
