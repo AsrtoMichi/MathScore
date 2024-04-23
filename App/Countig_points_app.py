@@ -335,8 +335,8 @@ class Main(Tk):
                 bonus = -5*correct+25 if 0 < correct < 5 else 3 if correct == 5 else bonus
 
                 if sum([team['status'] for team in self.list_point[selected_team].values() if 'jolly' in team]) == self.number_of_questions:
+                    self.list_point[selected_team]['base'] += [50, 30, 20, 15, 10][min(self.fulled, 5)]
                     self.fulled += 1
-                    self.list_point[selected_team]['base'] += [50, 30, 20, 15, 10][min(self.fulled, 5) - 1]
 
             # if wrong
             elif xm != entered_answer and status == 0:
