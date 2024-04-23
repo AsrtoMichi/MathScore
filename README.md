@@ -1,4 +1,4 @@
-
+![Font](https://github.com/AsrtoMichi/MathScore/assets/146475341/96c02f82-04eb-4838-8e2b-c69475608a18)
 # Introduction
 This app is aimed at counting points in math and physics competitions.
 The app consists of three windows: one for viewing the scores, one for entering the results, and one for entering the jolly (only one for team).
