@@ -94,7 +94,6 @@ class File:
                 except ValueError:
                     pass
                     
-                    
                 if rows[2][-10:] == date:
 
                     list_answer['names'].append(' '.join(rows[3].split()[2:]))
@@ -102,8 +101,6 @@ class File:
                     for row in rows:
                     
                         row.strip()
-                        
-                        print(row)
                         
                         if row.startswith("DOMANDA"):
                             n_question += 1                   
