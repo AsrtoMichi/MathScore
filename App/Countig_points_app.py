@@ -90,9 +90,10 @@ class File:
                 rows = File.Pyscraper.pre_analize(pdf_path)
 
                 try:
-                    rows.remove(" ").remove("")
+                    rows.remove(" ")
                 except ValueError:
                     pass
+                    
                     
                 if rows[2][-10:] == date:
 
@@ -100,7 +101,9 @@ class File:
 
                     for row in rows:
                     
-                        row = row.strip()
+                        row.strip()
+                        
+                        print(row)
                         
                         if row.startswith("DOMANDA"):
                             n_question += 1                   
@@ -111,8 +114,8 @@ class File:
                         elif row.startswith("dopo:"):
                         
                             time_taken = int(row.split("dopo:")[1].split()[0])
-                            points_earned = int(row[-4:])
-                            list_answer['answer'].append((list_answer['names'][-1], n_question, time_taken, points_earned))
+                            answer = int(row[-4:])
+                            list_answer['answer'].append((list_answer['names'][-1], n_question, time_taken, answer))
 
             list_answer['answer'].sort(key=lambda d: d[2])
             
@@ -121,7 +124,6 @@ class File:
         @staticmethod
         def analize_solution(pdf_path: str, date: bool = False) -> Union[List[int], str]:
             try:
-            
                 if date:
                     row = File.Pyscraper.pre_analize(pdf_path)[3]
                     if row.startswith("DATA"):
@@ -295,7 +297,7 @@ class Main(Tk):
                     Thread(target = self.bot()).start
   
                     
-                self.after(1000, self.update_timer)
+                self.after(30, self.update_timer)
                     
 
             elif self.timer_seconds == 0:
@@ -310,9 +312,9 @@ class Main(Tk):
             
                     
         for answer in self.answer:
-            if answer['time'] == (self.total_time-self.timer_seconds)//60:
+            if answer[2] == (self.total_time-self.timer_seconds)//60:
                 self.submit_answer(
-                    answer['team'], answer['question'], answer['answer'])
+                    answer[0], answer[1], answer[3])
                 self.answer.pop(0)
 
             else:
@@ -489,10 +491,7 @@ def main():
     jolly = Jolly_GUI(root)
     del root, arbiter
 
-    # jolly.mainloop()
+    jolly.mainloop()
     
-from cProfile import run
-
-
 if __name__ == "__main__":
-    run('main()')
+    main()
