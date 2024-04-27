@@ -29,7 +29,7 @@ class File:
                 'teams': config.get('Teams', 'teams').split(", "),
                 'time':  config.getint('Competition', 'time'),
                 'vantage': config.getint('Competition', 'vantage'),
-                'derive' : config.getint('Competition', 'derive')
+                'derive' : config.getint('Competition', 'derive'),
                 'solutions': literal_eval(config.get('Solutions', 'solutions')),
                 'name_file': config.get('Recording', 'name_file'),
                 'directory_recording': config.get('Recording', 'directory_recording')      
