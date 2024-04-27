@@ -29,6 +29,7 @@ class File:
                 'teams': config.get('Teams', 'teams').split(", "),
                 'time':  config.getint('Competition', 'time'),
                 'vantage': config.getint('Competition', 'vantage'),
+                'derive' : config.getint('Competition', 'derive')
                 'solutions': literal_eval(config.get('Solutions', 'solutions')),
                 'name_file': config.get('Recording', 'name_file'),
                 'directory_recording': config.get('Recording', 'directory_recording')      
@@ -66,6 +67,7 @@ class Main(Tk):
         self.solutions = {i+1: {"xm": solution[0], "er": solution[1],  "correct": 0, "incorrect": 0,
                                 "value": data['vantage']} for i, solution in enumerate(data['solutions'])}
         self.number_of_questions = len(self.solutions)
+        self.derive = data['derive']
 
         # genaration timer
 
@@ -77,7 +79,6 @@ class Main(Tk):
         self.name_team = data['teams']
            
         # list point, bonus, n_fulled
-
         self.list_point = {name: {question+1: {"errors": 0, "status": 0, "jolly": 1, "bonus": 0}
                                   for question in range(self.number_of_questions)} for name in self.name_team}
         for name in self.name_team:
