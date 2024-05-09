@@ -6,9 +6,9 @@ from tkinter import messagebox
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 class App(tk.Tk):
-    def __init__(self, screenName: str | None = None, baseName: str | None = None, className: str = "Tk", useTk: bool = True, sync: bool = False, use: str | None = None) -> None:
-        super().__init__(screenName, baseName, className, useTk, sync, use)
-        self.title("Graph generator")
+    def __init__(self):
+        self.title("Graph")
+        self.iconbitmap(join(dirname(__file__), "MathScore.ico"))
 
         file_name_label = tk.Label(self, text="File name:")
         file_name_label.pack()
