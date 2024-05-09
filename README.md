@@ -2,7 +2,7 @@
 # Introduction
 This app is aimed at counting points in math and physics competitions.
 The app consists of three windows: one for viewing the scores, one for entering the results, and one for entering the jolly (only one for team).  
-It also saves all variations of the total points and saves that in a .txt file in the same directory, to make grafic read above.
+It also saves all variations of the total points and saves that in a .txt file, to make [grafic](https://github.com/AsrtoMichi/MathScore/tree/Math%2Bpdf?tab=readme-ov-file#grafic).
 
 # Functionality
 
