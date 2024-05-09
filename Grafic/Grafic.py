@@ -1,11 +1,11 @@
 import matplotlib.pyplot as plt
-import os
-import ast
-import tkinter as tk
+from os.path import join, dirname
+from ast import literal_eval
+from tkinter import Tk
 from tkinter import messagebox
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
-class App(tk.Tk):
+class App(Tk):
     def __init__(self):
         self.title("Graph")
         self.iconbitmap(join(dirname(__file__), "MathScore.ico"))
@@ -27,11 +27,11 @@ class App(tk.Tk):
             self.canvas.get_tk_widget().destroy()
 
         file_name = self.file_name_entry.get() + ".txt"
-        file_path = os.path.join(os.path.dirname(__file__), file_name)
+        file_path = join(dirname(__file__), file_name)
 
         try:
             with open(file_path, 'r') as file:
-                data = ast.literal_eval(file.read())
+                data = literal_eval(file.read())
 
             fig = plt.Figure(figsize=(6, 6), dpi=100)
             ax = fig.add_subplot(111)
