@@ -15,7 +15,7 @@ The program is capable of analyzing PDFs to extract:
 It is possible to create a graphic whit that data with [Graphic.py](https://github.com/AsrtoMichi/MathScore/tree/Grafic). 
 App for work needs to have the recording (name.txt) file in their same directory.
 
-## Configuration
+# Configuration
 - Is requred [pypdf](https://pypi.org/project/pypdf/);
   - to install use command `pip install pypdf`;
   - the analysis of PDFs is limited to those coming from the site [PHI Quadro](https://www.phiquadro.it/index.php);
