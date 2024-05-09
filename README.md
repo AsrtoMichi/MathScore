@@ -7,7 +7,7 @@ It also saves all variations of the total points and saves that in a .txt file i
 
 ##Configuration
 - Is requred [pypdf](https://pypi.org/project/pypdf/);
-  - to istall use command `pip install pypdf`;
+  - to install use command `pip install pypdf`;
   - the analysis of PDFs is limited to those coming from the site [PHI Quadro](https://www.phiquadro.it/index.php);
 - configure the .ini properly, **is necessary**;
   - there is no difference between phat with `C:\\` and `c:\\`.
