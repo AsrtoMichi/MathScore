@@ -304,8 +304,7 @@ class Main(Tk):
 
     def bot(self):
         for question in self.solutions.keys(): 
-            if self.solutions[question]['correct'] < self.derive and self.timer_seconds >= 1200:
-                self.solutions[question]['value'] += 1
+            self.solutions[question]['value'] += 1
             
                     
         for answer in self.answer:
