@@ -8,7 +8,7 @@ It also saves all variations of the total points and saves that in a .txt file i
 
 ## Pdf anlysis
 The program is capable of analyzing PDFs to extract:
-- answers of questions;
+- questions' answers;
 - answers given by the team during the match.
 
 ## Grafic
