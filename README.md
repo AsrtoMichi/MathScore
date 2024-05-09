@@ -5,10 +5,10 @@ The app consists of three windows: one for viewing the scores, one for entering 
 To configure, you need to create a config.ini; an example is provided in the repository.
 It also saves all variations of the total points and saves that in a .txt file in the same directory.
 ##Configuration
--Is requred [pypdf](https://pypi.org/project/pypdf/);
-  -to istall use command `pip install pypdf`;
--configure the .ini properly, **is necessary**;
-  -there is no difference between phat with `C:\\` and `c:\\`.
+- Is requred [pypdf](https://pypi.org/project/pypdf/);
+  - to istall use command `pip install pypdf`;
+- configure the .ini properly, **is necessary**;
+  - there is no difference between phat with `C:\\` and `c:\\`.
 ## Grafic
 It is possible to create a graphic whit that data with [Graphic.py]().
 App for work needs to have the recording (name.txt) file in their same directory.
