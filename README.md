@@ -8,12 +8,12 @@ It also saves all variations of the total points and saves that in a .txt file i
 ##Configuration
 - Is requred [pypdf](https://pypi.org/project/pypdf/);
   - to istall use command `pip install pypdf`;
-  - the analysis of PDFs is limited to those coming from the site [PHI Quadro](https://www.phiquadro.it/index.php)
+  - the analysis of PDFs is limited to those coming from the site [PHI Quadro](https://www.phiquadro.it/index.php);
 - configure the .ini properly, **is necessary**;
   - there is no difference between phat with `C:\\` and `c:\\`.
 
 ## Grafic
-It is possible to create a graphic whit that data with [Graphic.py]().
+It is possible to create a graphic whit that data with [Graphic.py](https://github.com/AsrtoMichi/MathScore/tree/Grafic).
 App for work needs to have the recording (name.txt) file in their same directory.
 
 ## Credit
