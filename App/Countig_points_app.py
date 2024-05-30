@@ -14,7 +14,7 @@ from threading import Thread
 from configparser import ConfigParser
 from ast import literal_eval
 from os.path import join, dirname
-from typing import Union, Dict
+from typing import Union
 
 
 class File:
@@ -23,7 +23,7 @@ class File:
     """
 
     @staticmethod
-    def get_config() -> Dict[str, Union[tuple, int, int, int, tuple, str, str]]:
+    def get_config() -> dict:
 
         """
         A metod to get configurtios from config.ini
@@ -74,6 +74,7 @@ class Main(Tk):
         super().__init__()
         self.title("Competitors")
         self.geometry(f"1850x630")
+        self.resizable(True, False)
         self.iconbitmap(join(dirname(__file__), "MathScore.ico"))
 
 
@@ -138,7 +139,7 @@ class Main(Tk):
 
         # Creazione delle etichette per ogni domanda e riga
         for question in range(self.number_of_questions):
-            Label(self.frame_point, text=f"{question+1}", width=3, anchor="e").grid(column=question + 2, row=0, sticky="ns")
+            Label(self.frame_point, text=f"{question+1}", width=6, anchor="e", justify="center").grid(column=question + 2, row=0, sticky="ns")
 
         self.update_entry()
 
@@ -154,7 +155,7 @@ class Main(Tk):
 
         # Create value labels for each question
         for question in self.solutions.keys():
-            value_label = Entry(self.frame_point, width=6)
+            value_label = Entry(self.frame_point, width=6, bd = 5)
             value_label.insert(0, str(self.point_answer(question)))
             value_label.grid(column=question + 1, row=1, sticky="ns")
 
@@ -165,14 +166,14 @@ class Main(Tk):
             Label(self.frame_point, text=f"{team}: ", anchor="e", width=15).grid(
                 column=0, row=row, sticky="ns")
 
-            total_num = Entry(self.frame_point, width=5)
+            total_num = Entry(self.frame_point, width=6, bd = 5)
             total_num.insert(0, str(self.total_squad_point(team)))
             total_num.grid(column=1, row=row, sticky="ns")
 
+
             for column, question in enumerate(self.list_point[team].keys() - ['base'], 2):
                 
-
-                total_num = Entry(self.frame_point, width=5, bd=5)
+                total_num = Entry(self.frame_point, width=6, bd=5)
                 total_num.insert(0, self.point_answer_x_squad(team, question, True))
 
                 points = self.point_answer_x_squad(team, question)
@@ -200,7 +201,6 @@ class Main(Tk):
         Generate the clock label
         """
         self.timer_label.config(text=f"Time left: {self.timer_seconds // 3600:02}:{(self.timer_seconds % 3600) // 60:02}:{self.timer_seconds % 60:02}")
-
 
     def update_timer(self):
 
@@ -341,9 +341,7 @@ class Arbiter_GUI(Toplevel):
 
     def __init__(self, main):
         super().__init__(main)
-
         self.submit_answer_main = main.submit_answer
-        self.names_teams = main.names_teams
 
         # starting artiter's window
 
@@ -357,7 +355,7 @@ class Arbiter_GUI(Toplevel):
         Label(self, text="Team number:").pack()
         self.selected_team = StringVar()
         self.squadre_entry = Combobox(
-            self, textvariable=self.selected_team, values=self.names_teams, state="readonly")
+            self, textvariable=self.selected_team, values=main.names_teams, state="readonly")
         self.selected_team.set("")
         self.squadre_entry.pack()
 
@@ -397,7 +395,7 @@ class Jolly_GUI(Toplevel):
         super().__init__(main)
 
         self.submit_jolly_main = main.submit_jolly
-        self.names_teams = main.names_teams
+
 
         # starting jolly window
         self.title("Jolly")
@@ -409,7 +407,7 @@ class Jolly_GUI(Toplevel):
         Label(self, text="Team number:").pack()
         self.selected_team_jolly = StringVar()
         self.squadre_entry_jolly = Combobox(
-            self, textvariable=self.selected_team_jolly, values=self.names_teams, state="readonly")
+            self, textvariable=self.selected_team_jolly, values=main.names_teams, state="readonly")
         self.selected_team_jolly.set("")
         self.squadre_entry_jolly.pack()
 
@@ -448,4 +446,4 @@ def main():
 
 if __name__ == "__main__":
     from cProfile import run
-    main()
+    run('main()')
