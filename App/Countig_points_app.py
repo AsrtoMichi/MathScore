@@ -40,11 +40,11 @@ class File:
                 config.get("Recording", "directory_recording"),
             )
         except Exception as e:
+
             from tkinter.messagebox import showerror
             showerror(
                 "Error", f"Unable to complete configuration.  Details: {str(e)}")
-            from sys import exit
-            exit()
+            exit(1)
 
     @staticmethod
     def save_data(directory: str, name: str, data: Tuple[dict, list]):
@@ -89,10 +89,9 @@ class Main(Tk):
 
         # genaration timer
         self.total_time = self.timer_seconds = data[1]
-        self.timer_status = 0
-        self.timer_label = Label(self, font=('Helvetica', 18, 'bold'))
 
         # widget costruction
+        self.timer_label = Label(self, font=('Helvetica', 18, 'bold'))
         self.timer_label.pack()
         self.start_button = Button(
             self, text="Start", command=self.start_clock)
@@ -180,7 +179,6 @@ class Main(Tk):
         Jolly_GUI(self)
 
         self.start_button.config(state='disabled')
-        self.timer_status = 1
 
         points_label = Frame(self, width=1800, height=600)
         points_label.pack(pady=20)
@@ -210,8 +208,8 @@ class Main(Tk):
                 column=question, row=0
             )
 
-        self.update_timer()
         self.update_entry()
+        self.update_timer()
 
     def generate_clock(self):
         """
@@ -226,24 +224,20 @@ class Main(Tk):
         Update timer and launch bot
         """
 
-        if self.timer_status == 1:
+        if self.timer_seconds == 0:
+            File.save_data(self.directory_recording,
+                           self.name_file, (self.recording_teams, self.recording_question))
+            self.winfo_children()[3].destroy()
+            self.winfo_children()[2].destroy()
 
-            if self.timer_seconds > 0:
+        else:
+            self.timer_seconds -= 1
+            self.generate_clock()
 
-                self.timer_seconds -= 1
-                self.generate_clock()
+            if self.timer_seconds % 60 == 0:
+                Thread(target=self.bot()).start
 
-                if self.timer_seconds % 60 == 0:
-                    Thread(target=self.bot()).start
-
-                self.after(1000, self.update_timer)
-
-            elif self.timer_seconds == 0:
-                self.timer_status = 2
-                File.save_data(self.directory_recording,
-                               self.name_file, self.recording_teams)
-                self.winfo_children()[3].destroy()
-                self.winfo_children()[2].destroy()
+            self.after(1000, self.update_timer)
 
     def bot(self):
         """
@@ -502,6 +496,6 @@ class Jolly_GUI(Toplevel):
 
 if __name__ == "__main__":
 
-    #from cProfile import run
-    #run('Main()')
-    Main().mainloop()
+    from cProfile import run
+    run('Main()')
+    # Main().mainloop()
