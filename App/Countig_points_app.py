@@ -4,17 +4,13 @@
 # GUI
 from tkinter import Tk, Toplevel, Canvas, StringVar, Entry, Label
 from tkinter.ttk import Frame, Button, Scrollbar, Combobox
-from tkinter.messagebox import showerror
 
 # os
-from sys import exit
 from threading import Thread
 
 # class File
-from configparser import ConfigParser
-from ast import literal_eval
 from os.path import join, dirname
-from typing import Union, Literal
+from typing import Union, Literal, Tuple
 
 
 class File:
@@ -28,6 +24,8 @@ class File:
         A metod to get configurtios from config.ini
         """
         try:
+            from configparser import ConfigParser
+            from ast import literal_eval
             config = ConfigParser()
             config.read(join(dirname(__file__), "config.ini"))
 
@@ -41,23 +39,27 @@ class File:
                 config.get("Recording", "directory_recording"),
             )
         except Exception as e:
+            from tkinter.messagebox import showerror
             showerror(
                 "Error", f"Unable to complete configuration.  Details: {str(e)}")
+            from sys import exit
             exit()
 
     @staticmethod
-    def save_data(directory: str, name: str, data: dict):
+    def save_data(directory: str, name: str, data: Tuple[dict, list]):
         """
         A metod to save data in a .txt file
         """
-
         try:
-            with open(join(directory, f"{name}.txt"), 'w') as record:
-                record.write(str(data))
+
+            open(join(directory, f"{name}.txt"), 'w').write(str(data))
+
         except Exception as e:
+
+            from tkinter.messagebox import showerror
             showerror(
                 "Error",
-                f"An error occurred:, data will be printed in the terminal.  Details: {str(e)}",
+                f"An error occurred, data will be printed in the terminal.  Details: {str(e)}",
             )
             print(data)
 
@@ -88,7 +90,13 @@ class Main(Tk):
         self.total_time = self.timer_seconds = data[1]
         self.timer_status = 0
         self.timer_label = Label(self, font=('Helvetica', 18, 'bold'))
-        self.genarate_clock()
+
+        # widget costruction
+        self.timer_label.pack()
+        self.start_button = Button(
+            self, text="Start", command=self.start_clock)
+        self.start_button.pack()
+        self.generate_clock()
 
         # setting DERIVE and creation solutions dict
         self.DERIVE = data[3]
@@ -101,24 +109,77 @@ class Main(Tk):
         # list point, bonus, n_fulled
         base_points = self.NUMBER_OF_QUESTIONS * 10
         self.list_point = {name: {'base': base_points, **{question+1: {'errors': 0, 'status': 0, 'jolly': 1,
-                                                                       'bonus': 0} for question in range(self.NUMBER_OF_QUESTION)}} for name in self.NAMES_TEAMS}
+                                                                       'bonus': 0} for question in range(self.NUMBER_OF_QUESTIONS)}} for name in self.NAMES_TEAMS}
 
         self.fulled = 0
 
         # data recording
-        self.recording, self.name_file, self.directory_recording = (
+        self.recording_teams, self.recording_question, self.name_file, self.directory_recording = (
             {name: [(0, 220)] for name in self.NAMES_TEAMS},
+            [(0, (0 for _ in range(self.NUMBER_OF_QUESTIONS)))],
             data[5],
             data[6],
         )
 
-        del data
+    def update_entry(self):
+        """
+        Update Labels
+        """
 
-        # widget costruction
-        self.timer_label.pack()
-        self.start_button = Button(
-            self, text="Start", command=self.start_clock)
-        self.start_button.pack()
+        # Clear all widgets in the frame except protected columns
+        for widget in self.frame_point.winfo_children():
+            if widget.grid_info()['row'] != 0:
+                widget.destroy()
+
+        # Create value labels for each question
+        for question in range(self.NUMBER_OF_QUESTIONS):
+            value_label = Entry(self.frame_point, width=6, bd=5)
+            value_label.insert(0, str(self.point_answer(question+1)))
+            value_label.grid(column=question + 2, row=1)
+
+        # Populate team points and color-code entries
+        for row, frame in enumerate(
+            sorted(
+                [(self.total_squad_point(team), team)
+                 for team in self.NAMES_TEAMS],
+                key=lambda x: x[0],
+                reverse=True,
+            ),
+            2,
+        ):
+            team = frame[1]
+
+            Label(self.frame_point, text=f"{team}: ", anchor='e').grid(
+                column=0, row=row
+            )
+
+            total_num = Entry(self.frame_point, width=6, bd=5)
+            total_num.insert(0, str(self.total_squad_point(team)))
+            total_num.grid(column=1, row=row)
+
+            for column in range(1, self.NUMBER_OF_QUESTIONS + 1):
+
+                points = self.point_answer_x_squad(team, column)
+
+                total_num = Entry(self.frame_point, width=6, bd=5,
+                                  bg='red' if points < 0 else 'green' if points > 0 else 'white')
+                total_num.insert(
+                    0, self.point_answer_x_squad(team, column, True))
+                total_num.grid(column=column + 1, row=row)
+
+        Thread(target=self.collect_values_question()).start()
+
+    # methods about time and timer label
+
+    def start_clock(self):
+        """
+        Initaialise the timer and block start buttom
+        """
+        Arbiter_GUI(self)
+        Jolly_GUI(self)
+
+        self.start_button.config(state='disabled')
+        self.timer_status = 1
 
         points_label = Frame(self, width=1800, height=600)
         points_label.pack(pady=20)
@@ -148,70 +209,10 @@ class Main(Tk):
                 column=question, row=0
             )
 
+        self.update_timer()
         self.update_entry()
 
-    def update_entry(self):
-        """
-        Update Labels
-        """
-
-        # Clear all widgets in the frame except protected columns
-        for widget in self.frame_point.winfo_children():
-            if widget.grid_info()['row'] != 0:
-                widget.destroy()
-
-        # Create value labels for each question
-        for question in self.solutions.keys():
-            value_label = Entry(self.frame_point, width=6, bd=5)
-            value_label.insert(0, str(self.point_answer(question)))
-            value_label.grid(column=question + 1, row=1)
-
-        # Populate team points and color-code entries
-        for row, frame in enumerate(
-            sorted(
-                [(self.total_squad_point(team), team)
-                 for team in self.NAMES_TEAMS],
-                key=lambda x: x[0],
-                reverse=True,
-            ),
-            2,
-        ):
-            team = frame[1]
-
-            Label(self.frame_point, text=f"{team}: ", anchor='e').grid(
-                column=0, row=row
-            )
-
-            total_num = Entry(self.frame_point, width=6, bd=5)
-            total_num.insert(0, str(self.total_squad_point(team)))
-            total_num.grid(column=1, row=row)
-
-            for column in range(1, self.NUMBER_OF_QUESTIONS + 1):
-
-                total_num = Entry(self.frame_point, width=6, bd=5)
-                total_num.insert(
-                    0, str(self.point_answer_x_squad(team, column, True)))
-                total_num.grid(column=column + 1, row=row)
-
-                points = self.point_answer_x_squad(team, column)
-
-                if points < 0:
-                    total_num.configure(background='red')
-                elif points > 0:
-                    total_num.configure(background='green')
-                else:
-                    total_num.configure(background='white')
-
-    # methods about time and timer label
-    def start_clock(self):
-        """
-        Initaialise the timer and block start buttom
-        """
-        self.start_button.config(state='disabled')
-        self.timer_status = 1
-        self.update_timer()
-
-    def genarate_clock(self):
+    def generate_clock(self):
         """
         Generate the clock label
         """
@@ -229,7 +230,7 @@ class Main(Tk):
             if self.timer_seconds > 0:
 
                 self.timer_seconds -= 1
-                self.genarate_clock()
+                self.generate_clock()
 
                 if self.timer_seconds % 60 == 0:
                     Thread(target=self.bot()).start
@@ -237,9 +238,11 @@ class Main(Tk):
                 self.after(100, self.update_timer)
 
             elif self.timer_seconds == 0:
-                File.save_data(self.directory_recording,
-                               self.name_file, self.recording)
                 self.timer_status = 2
+                File.save_data(self.directory_recording,
+                               self.name_file, self.recording_teams)
+                self.winfo_children()[3].destroy()
+                self.winfo_children()[2].destroy()
 
     def bot(self):
         """
@@ -254,75 +257,80 @@ class Main(Tk):
 
         self.update_entry()
 
+    def collect_values_question(self):
+        self.recording_question.append((self.timer_seconds, (self.point_answer(
+            question+1) for question in range(self.NUMBER_OF_QUESTIONS))))
+
     # methods to submit answer
+
     def submit_answer(
         self, selected_team: str, entered_question: int, entered_answer: int
     ):
         """
         the metod to submit an answer
         """
-        if self.timer_status == 1:
 
-            if self.list_point[selected_team][entered_question]['status'] == 0:
+        # if is unanswered
+        if self.list_point[selected_team][entered_question]['status'] == 0:
 
-                # if correct
-                if entered_answer == self.solutions[entered_question]['xm']:
-                    self.solutions[entered_question]['correct'] += 1
-                    self.list_point[selected_team][entered_question]['status'] = 1
-                    self.list_point[selected_team][entered_question]['bonus'] = (
+            # if correct
+            if entered_answer == self.solutions[entered_question]['xm']:
+                self.solutions[entered_question]['correct'] += 1
+                self.list_point[selected_team][entered_question]['status'] = 1
+                self.list_point[selected_team][entered_question]['bonus'] = (
+                    20,
+                    15,
+                    10,
+                    5,
+                    3,
+                    0,
+                )[min(self.solutions[entered_question]['correct'], 6) - 1]
+
+                if (
+                    sum(
+                        [
+                            team['status']
+                            for team in self.list_point[selected_team].values()
+                            if type(team) is dict
+                        ]
+                    )
+                    == self.NUMBER_OF_QUESTIONS
+                ):
+                    self.fulled += 1
+                    self.list_point[selected_team]['base'] += (
+                        50,
+                        30,
                         20,
                         15,
                         10,
-                        5,
-                        3,
                         0,
-                    )[min(self.solutions[entered_question]['correct'], 6) - 1]
+                    )[min(self.fulled, 6) - 1]
 
-                    if (
-                        sum(
-                            [
-                                team['status']
-                                for team in self.list_point[selected_team].values()
-                                if type(team) is dict
-                            ]
-                        )
-                        == self.NUMBER_OF_QUESTIONS
-                    ):
-                        self.fulled += 1
-                        self.list_point[selected_team]['base'] += (
-                            50,
-                            30,
-                            20,
-                            15,
-                            10,
-                            0,
-                        )[min(self.fulled, 6) - 1]
-
-                # if wrong
-                else:
-                    self.list_point[selected_team][entered_question]['errors'] += 1
-                    self.solutions[entered_question]['incorrect'] += (
-                        1
-                        if self.list_point[selected_team][entered_question]['errors']
-                        == 1
-                        else 0
-                    )
-
-            self.update_entry()
-
-            self.recording[selected_team].append(
-                (
-                    self.total_time - self.timer_seconds,
-                    self.total_squad_point(selected_team),
+            # if wrong
+            else:
+                self.list_point[selected_team][entered_question]['errors'] += 1
+                self.solutions[entered_question]['incorrect'] += (
+                    1
+                    if self.list_point[selected_team][entered_question]['errors']
+                    == 1
+                    else 0
                 )
+
+        self.update_entry()
+
+        self.recording_teams[selected_team].append(
+            (
+                self.total_time - self.timer_seconds,
+                self.total_squad_point(selected_team),
             )
+        )
 
     def submit_jolly(self, selected_team: str, entered_question: int):
         """
         the metod to submit a jolly
         """
         # check timer staus
-        if self.timer_status == 1 and self.timer_seconds > (self.total_time - 600):
+        if self.timer_seconds > (self.total_time - 600):
             # check if other jolly are been given
             if (
                 sum(
@@ -491,15 +499,8 @@ class Jolly_GUI(Toplevel):
         self.question_entry_jolly.delete(0, "end")
 
 
-def main():
-    root = Main()
-    Arbiter_GUI(root)
-    Jolly_GUI(root)
-    return root
-
-
 if __name__ == "__main__":
 
-    # from cProfile import run
-    # run('main()')
-    main().mainloop()
+    #from cProfile import run
+    # run('Main()')
+    Main().mainloop()
