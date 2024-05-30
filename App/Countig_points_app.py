@@ -9,6 +9,8 @@ from tkinter.ttk import Frame, Button, Scrollbar, Combobox
 from threading import Thread
 
 # class File
+from configparser import ConfigParser
+from ast import literal_eval
 from os.path import join, dirname
 from typing import Union, Literal, Tuple
 
@@ -24,8 +26,7 @@ class File:
         A metod to get configurtios from config.ini
         """
         try:
-            from configparser import ConfigParser
-            from ast import literal_eval
+
             config = ConfigParser()
             config.read(join(dirname(__file__), "config.ini"))
 
@@ -235,7 +236,7 @@ class Main(Tk):
                 if self.timer_seconds % 60 == 0:
                     Thread(target=self.bot()).start
 
-                self.after(100, self.update_timer)
+                self.after(1000, self.update_timer)
 
             elif self.timer_seconds == 0:
                 self.timer_status = 2
@@ -502,5 +503,5 @@ class Jolly_GUI(Toplevel):
 if __name__ == "__main__":
 
     #from cProfile import run
-    # run('Main()')
+    #run('Main()')
     Main().mainloop()
