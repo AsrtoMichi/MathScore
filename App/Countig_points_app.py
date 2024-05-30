@@ -23,7 +23,7 @@ class File:
     """
 
     @staticmethod
-    def get_config() -> dict:
+    def get_config() -> tuple:
 
         """
         A metod to get configurtios from config.ini
@@ -32,15 +32,15 @@ class File:
             config = ConfigParser()
             config.read(join(dirname(__file__), "config.ini"))
 
-            return {
-                'teams': tuple(config.get('Teams', 'teams').split(", ")),
-                'time':  config.getint('Competition', 'time'),
-                'vantage': config.getint('Competition', 'vantage'),
-                'derive': config.getint('Competition', 'derive'),
-                'solutions': literal_eval(config.get('Solutions', 'solutions')),
-                'name_file': config.get('Recording', 'name_file'),
-                'directory_recording': config.get('Recording', 'directory_recording')
-            }
+            return (
+                tuple(config.get('Teams', 'teams').split(", ")),
+                config.getint('Competition', 'time'),
+                config.getint('Competition', 'vantage'),
+                config.getint('Competition', 'derive'),
+                literal_eval(config.get('Solutions', 'solutions')),
+                config.get('Recording', 'name_file'),
+                config.get('Recording', 'directory_recording')
+            )
         except Exception as e:
             showerror(
                 "Error", f"Unable to complete configuration.  Details: {str(e)}")
@@ -74,7 +74,7 @@ class Main(Tk):
         super().__init__()
         self.title("Competitors")
         self.geometry(f"1850x630")
-        self.resizable(True, False)
+        self.resizable(height= False)
         self.iconbitmap(join(dirname(__file__), "MathScore.ico"))
 
 
@@ -82,20 +82,18 @@ class Main(Tk):
         data = File.get_config()
 
         # teams' names
-        self.names_teams = data['teams']
-
+        self.names_teams = data[0]
 
         # genaration timer
-        self.total_time = data['time']
-        self.timer_seconds = self.total_time
+        self.total_time = self.timer_seconds = data[1]
         self.timer_status = 0        
         self.timer_label = Label(self, font=("Helvetica", 18, "bold"))
         self.genarate_clock() 
         
         # setting derive and creation solutions dict
-        self.derive = data['derive']
+        self.derive = data[3]
         self.solutions = {i+1: {"xm": solution, "correct": 0, "incorrect": 0,
-                                "value": data['vantage']} for i, solution in enumerate(data['solutions'])}
+                                "value": data[2]} for i, solution in enumerate(data[4])}
         self.number_of_questions = len(self.solutions)       
 
         # list point, bonus, n_fulled
@@ -106,14 +104,11 @@ class Main(Tk):
         self.fulled = 0
 
         # data recording
-        self.recording = {name: [(0, 220)] for name in self.names_teams}
-        self.name_file = data['name_file']
-        self.directory_recording = data['directory_recording']
+        self.recording, self.name_file, self.directory_recording = {name: [(0, 220)] for name in self.names_teams}, data[5], data[6]
 
         del data
 
         #widget costruction
-
         self.timer_label.pack()
         self.start_button = Button(
             self, text="Start", command=self.start_clock)
@@ -134,12 +129,11 @@ class Main(Tk):
 
         self.frame_point = Frame(
             canvas, width=1800, height=len(self.names_teams)*26)
-        canvas.create_window((0, 0), window=self.frame_point, anchor='nw')
-
+        canvas.create_window((0, 0), window=self.frame_point)
 
         # Creazione delle etichette per ogni domanda e riga
-        for question in range(self.number_of_questions):
-            Label(self.frame_point, text=f"{question+1}", width=6, anchor="e", justify="center").grid(column=question + 2, row=0, sticky="ns")
+        for question in range(2, self.number_of_questions+2):
+            Label(self.frame_point, text=f"{question+1}", width=6 ).grid(column=question, row=0)
 
         self.update_entry()
 
@@ -157,35 +151,34 @@ class Main(Tk):
         for question in self.solutions.keys():
             value_label = Entry(self.frame_point, width=6, bd = 5)
             value_label.insert(0, str(self.point_answer(question)))
-            value_label.grid(column=question + 1, row=1, sticky="ns")
+            value_label.grid(column=question + 1, row=1)
 
         # Populate team points and color-code entries
         for row, frame in enumerate(sorted([(self.total_squad_point(team), team) for team in self.names_teams], key=lambda x: x[0], reverse=True), 2):
             team = frame[1]
 
-            Label(self.frame_point, text=f"{team}: ", anchor="e", width=15).grid(
-                column=0, row=row, sticky="ns")
+            Label(self.frame_point, text=f"{team}: ", anchor="e").grid(
+                column=0, row=row)
 
             total_num = Entry(self.frame_point, width=6, bd = 5)
             total_num.insert(0, str(self.total_squad_point(team)))
-            total_num.grid(column=1, row=row, sticky="ns")
+            total_num.grid(column=1, row=row)
 
 
-            for column, question in enumerate(self.list_point[team].keys() - ['base'], 2):
+            for column in range(1, self.number_of_questions+1):
                 
                 total_num = Entry(self.frame_point, width=6, bd=5)
-                total_num.insert(0, self.point_answer_x_squad(team, question, True))
+                total_num.insert(0, str(self.point_answer_x_squad(team, column, True)))
+                total_num.grid(column=column+1, row=row)
 
-                points = self.point_answer_x_squad(team, question)
+                points = self.point_answer_x_squad(team, column)
 
                 if points < 0:
                     total_num.configure(background="red")
                 elif points > 0:
                     total_num.configure(background="green")
                 else:
-                    total_num.configure(background="white")
-
-                total_num.grid(column=column, row=row, sticky="ns")
+                    total_num.configure(background="white")       
 
     # methods about time and timer label
     def start_clock(self):
@@ -252,21 +245,24 @@ class Main(Tk):
             xm, correct, incorrect, value = self.solutions[entered_question].values(
             )
 
-            # if correct
-            if entered_answer == xm:
-                correct += 1
-                status = 1
-                bonus = -5*correct+25 if 0 < correct < 5 else 3 if correct == 5 else bonus
 
-                if sum([team['status'] for team in self.list_point[selected_team].values() if 'jolly' in team]) == self.number_of_questions:
-                    self.fulled += 1
-                    self.list_point[selected_team]['base'] += [50,
-                                                               30, 20, 15, 10][min(self.fulled, 5) - 1]
+            if status == 0:
+                # if correct
+                if entered_answer == xm:
+                    correct += 1
+                    status = 1
+                    bonus = -5*correct+25 if 0 < correct < 5 else 3 if correct == 5 else bonus
 
-            # if wrong
-            elif xm != entered_answer and status == 0:
-                errors += 1
-                incorrect += 1 if errors == 1 else 0
+                    if sum([team['status'] for team in self.list_point[selected_team].values() if type(team) is dict]) == self.number_of_questions:
+                        self.fulled += 1
+                        self.list_point[selected_team]['base'] += [50,
+                                                                30, 20, 15, 10][min(self.fulled, 5) - 1]
+
+
+                # if wrong
+                elif xm != entered_answer:
+                    errors += 1
+                    incorrect += 1 if errors == 1 else 0
 
             # inboxing solutions
             self.solutions[entered_question] = {
@@ -327,7 +323,6 @@ class Main(Tk):
                 
                 return f"{result} J" if answer_point['jolly'] == 2 and  jolly_simbol else result
  
-
     def total_squad_point(self, team: str) -> int:
 
         """
@@ -336,28 +331,25 @@ class Main(Tk):
         if team in self.names_teams:
             return sum(self.point_answer_x_squad(team, question) for question in self.list_point[team].keys())
 
-
 class Arbiter_GUI(Toplevel):
 
-    def __init__(self, main):
-        super().__init__(main)
+    def __init__(self, main: Main):
+        super().__init__(main )
         self.submit_answer_main = main.submit_answer
 
         # starting artiter's window
-
         self.title("Arbiter")
         self.geometry("500x210")
         self.resizable(False, False)
         self.iconbitmap(join(dirname(__file__), "MathScore.ico"))
 
         # craation entry for data
-
         Label(self, text="Team number:").pack()
-        self.selected_team = StringVar()
+        self.selected_team = StringVar(value="")
         self.squadre_entry = Combobox(
             self, textvariable=self.selected_team, values=main.names_teams, state="readonly")
-        self.selected_team.set("")
         self.squadre_entry.pack()
+
 
         Label(self, text="Question number:").pack()
         self.question_entry = Entry(self)
@@ -391,26 +383,25 @@ class Arbiter_GUI(Toplevel):
 
 class Jolly_GUI(Toplevel):
 
-    def __init__(self, main: classmethod):
+    def __init__(self, main: Main):
         super().__init__(main)
 
+
         self.submit_jolly_main = main.submit_jolly
-
-
         # starting jolly window
         self.title("Jolly")
         self.geometry("500x160")
         self.resizable(False, False)
         self.iconbitmap(join(dirname(__file__), "MathScore.ico"))
 
-        # creatition entry for data
-        Label(self, text="Team number:").pack()
-        self.selected_team_jolly = StringVar()
+        # creatition entry for tema
+        Label(self, text="Team: ").pack()
+        self.selected_team_jolly = StringVar(value="")
         self.squadre_entry_jolly = Combobox(
             self, textvariable=self.selected_team_jolly, values=main.names_teams, state="readonly")
-        self.selected_team_jolly.set("")
         self.squadre_entry_jolly.pack()
 
+        # creatition entry for question
         Label(self, text="Question number:").pack()
         self.question_entry_jolly = Entry(self)
         self.question_entry_jolly.pack()
@@ -420,13 +411,12 @@ class Jolly_GUI(Toplevel):
 
     def submit_jolly(self):
 
-        
         """
         The method associated to the button
         """
 
         try:
-            Thread(target=self.submit_jolly_main(self.selected_team_jolly.get(), int(
+            Thread(target=self.self.submit_jolly_main(self.selected_team_jolly.get(), int(
                 self.question_entry_jolly.get()))).start
 
         except:
@@ -437,13 +427,12 @@ class Jolly_GUI(Toplevel):
 
 def main():
     root = Main()
-    arbiter = Arbiter_GUI(root)
-    jolly = Jolly_GUI(root)
-    del root, arbiter
-
-    jolly.mainloop()
+    Arbiter_GUI(root)
+    Jolly_GUI(root)
+    return root 
 
 
 if __name__ == "__main__":
     from cProfile import run
     run('main()')
+    #main().mainloop()
