@@ -26,23 +26,18 @@ import sys
 # 30 Conclusion during the competions
 
 class Recorder:
-
-    def __init__(self, names_teams: list, number_question: int, total_time: int, base_points: int):
-
+    def __init__(self, names_teams: list, number_of_question_tuple: tuple, total_time: int, base_points: int):
         self._jolly = {name: 0 for name in names_teams}
         self._answer = {name: [(total_time, base_points)]
                         for name in names_teams}
-        self._values_questions = {
-            question: [(total_time, base_points)]
-            for question in range(1, number_question+1)
-        }
-        self._total_teams = {name: []
-                             for name in names_teams}
+        self._values_questions = {question: [
+            (total_time, base_points)] for question in number_of_question_tuple}
+        self._total_teams = {name: [] for name in names_teams}
 
     def record_jolly(self, name_team: str, question: int):
         self._jolly[name_team] = question
 
-    def record_ansewer(self, name_team: str, time: int, answer: int):
+    def record_answer(self, name_team: str, time: int, answer: int):
         self._answer[name_team].append((time, answer))
 
     def record_values_questions(self, question: int, time: int, value: int):
@@ -74,7 +69,7 @@ class Main(Tk):
             from tkinter.messagebox import showerror
             showerror(
                 "Error", f"Unable to find the config.ini file")
-            exit(11)
+            exit(10)
 
         try:
 
@@ -97,16 +92,20 @@ class Main(Tk):
                 config.get('Points', 'bonus_fulled'))
             self._N_BONUS_FULLED = len(self._BONUS_FULLED)
 
-            # creation solutions dict
-            self._solutions = {
-                i + 1: {'xm': solution, 'correct': 0, 'incorrect': 0, 'value':  config.getint('Points', 'vantage')}
-                for i, solution in enumerate(literal_eval(config.get('Solutions', 'solutions')))
-            }
-            self._NUMBER_OF_QUESTIONS = len(self._solutions)
+            self._solutions = [None] + [
+                {'solution': solution, 'correct': 0, 'incorrect': 0,
+                    'value': config.getint('Points', 'vantage')}
+                for solution in literal_eval(config.get('Solutions', 'solutions'))
+            ]
+
+            self._NUMBER_OF_QUESTIONS = len(self._solutions)-1
+
+            self._NUMBER_OF_QUESTIONS_RANGE = range(
+                1, self._NUMBER_OF_QUESTIONS+1)
 
             # list point, bonus, n_fulled
             self._list_point = {name: [self._NUMBER_OF_QUESTIONS * 10] + [{'errors': 0, 'status': 0, 'jolly': 1, 'bonus': 0}
-                                                                          for _ in range(self._NUMBER_OF_QUESTIONS)] for name in self.NAMES_TEAMS}
+                                                                          for _ in self._NUMBER_OF_QUESTIONS_RANGE] for name in self.NAMES_TEAMS}
             self._fulled = 0
 
             # data recording
@@ -116,7 +115,7 @@ class Main(Tk):
             self._data_saving_success = False
 
             self._recorder = Recorder(
-                self.NAMES_TEAMS, self._NUMBER_OF_QUESTIONS, self._TOTAL_TIME, self._NUMBER_OF_QUESTIONS * 10)
+                self.NAMES_TEAMS, self._NUMBER_OF_QUESTIONS_RANGE, self._TOTAL_TIME, self._NUMBER_OF_QUESTIONS * 10)
 
         except configparser.NoSectionError:
 
@@ -130,9 +129,9 @@ class Main(Tk):
             # creation Main window and castomization
             super().__init__()
             self.title("Competitors")
-            self.geometry("1850x630")
+            self.geometry('1850x630')
             self.resizable(True, False)
-            self.iconbitmap(join(dirname(__file__), "MathScore.ico"))
+            self.iconbitmap(join(dirname(__file__), 'MathScore.ico'))
 
             # widget costruction
             self.timer_label = Label(self, font=('Helvetica', 18, 'bold'))
@@ -142,8 +141,8 @@ class Main(Tk):
             self.start_button.pack()
             self.generate_clock()
 
-            self.protocol("WM_DELETE_WINDOW", lambda: exit(3 if self._timer_seconds !=
-                                                           0 else 2 if self._data_saving_success else 0))
+            self.protocol('WM_DELETE_WINDOW', lambda: exit(3 if self._timer_seconds !=
+                                                           0 else 20 if self._data_saving_success else 0))
 
     # methods about the progress ot time
 
@@ -167,7 +166,7 @@ class Main(Tk):
     def update_timer(self):
         """
         Update timer and launch bot
-        Is the most impotant metod for the 
+        Is the most impotant metod for the
         """
 
         # if time is finished
@@ -218,7 +217,7 @@ class Main(Tk):
         """
         Increase poits amutomaticaly
         """
-        for question in self._solutions.keys():
+        for question in self._NUMBER_OF_QUESTIONS_RANGE:
             if (
                 self._solutions[question]['correct'] < self._DERIVE
                 and self._timer_seconds >= 1200
@@ -232,7 +231,7 @@ class Main(Tk):
             self._recorder.record_total_teams(
                 team, self._timer_seconds, self.total_squad_point(team))
 
-        for question in range(1, self._NUMBER_OF_QUESTIONS+1):
+        for question in self._NUMBER_OF_QUESTIONS_RANGE:
             self._recorder.record_values_questions(
                 question, self._timer_seconds, self.point_answer(question))
 
@@ -274,9 +273,9 @@ class Main(Tk):
         canvas.create_window((0, 0), window=self.frame_point, anchor='nw')
 
         # Creazione delle etichette per ogni domanda e riga
-        for question in range(2, self._NUMBER_OF_QUESTIONS + 2):
-            Label(self.frame_point, text=f"{question+1}", width=6).grid(
-                column=question, row=0
+        for question in self._NUMBER_OF_QUESTIONS_RANGE:
+            Label(self.frame_point, text=f"{question}", width=6).grid(
+                column=question+1, row=0
             )
 
         self.update_entry()
@@ -292,10 +291,11 @@ class Main(Tk):
                 widget.destroy()
 
         # Create value labels for each question
-        for question in range(self._NUMBER_OF_QUESTIONS):
+        for question in self._NUMBER_OF_QUESTIONS_RANGE:
+            print(question)
             value_label = Entry(self.frame_point, width=6, bd=5)
-            value_label.insert(0, str(self.point_answer(question+1)))
-            value_label.grid(column=question + 2, row=1)
+            value_label.insert(0, str(self.point_answer(question)))
+            value_label.grid(column=question + 1, row=1)
 
         # Populate team points and color-code entries
         for row, frame in enumerate(
@@ -317,7 +317,7 @@ class Main(Tk):
             total_num.insert(0, str(self.total_squad_point(team)))
             total_num.grid(column=1, row=row)
 
-            for column in range(1, self._NUMBER_OF_QUESTIONS + 1):
+            for column in self._NUMBER_OF_QUESTIONS_RANGE:
 
                 points = self.point_answer_x_squad(team, column)
 
@@ -340,7 +340,7 @@ class Main(Tk):
         if self._list_point[selected_team][entered_question]['status'] == 0:
 
             # if correct
-            if entered_answer == self._solutions[entered_question]['xm']:
+            if entered_answer == self._solutions[entered_question]['solution']:
 
                 self._list_point[selected_team][entered_question]['status'] = 1
                 self._list_point[selected_team][entered_question]['bonus'] = self._BONUS_ANSWER[min(
@@ -372,7 +372,7 @@ class Main(Tk):
                     else 0
                 )
 
-        self._recorder.record_ansewer(
+        self._recorder.record_answer(
             selected_team, entered_question, entered_answer)
 
         self.update_entry()
@@ -401,11 +401,7 @@ class Main(Tk):
         """
         Return the value of answer
         """
-        try:
-            answer_data = self._solutions[question]
-            return int(answer_data['value'] + answer_data['incorrect'] * 2)
-        except IndexError:
-            return 0
+        return int(self._solutions[question]['value'] + self._solutions[question]['incorrect'] * 2)
 
     def point_answer_x_squad(
         self, team: str, question: Union[Literal['base'], int], jolly_simbol: bool = False
@@ -433,7 +429,7 @@ class Main(Tk):
         Return the point of a team
         """
         return sum(self.point_answer_x_squad(team, question)
-                   for question in range(1, self._NUMBER_OF_QUESTIONS+1)
+                   for question in self._NUMBER_OF_QUESTIONS_RANGE
                    ) + self._list_point[team][0]
 
 
@@ -549,6 +545,7 @@ class Jolly_GUI(Toplevel):
 
 if __name__ == "__main__":
 
-    # from cProfile import run
-    # run('Main()')
-    Main().mainloop()
+    from cProfile import run
+    run('Main()')
+
+    # Main().mainloop()
