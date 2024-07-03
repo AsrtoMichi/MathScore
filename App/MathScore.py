@@ -6,6 +6,7 @@ import configparser
 from typing import Union, Literal
 from tkinter import Tk, Toplevel, Canvas, StringVar, Entry, Label
 from tkinter.ttk import Frame, Button, Scrollbar, Combobox
+from tkinter.filedialog import askopenfilename, asksaveasfile
 
 # os
 from threading import Thread
@@ -13,26 +14,25 @@ from threading import Thread
 # .ini reading
 from configparser import ConfigParser
 from ast import literal_eval
-from os.path import join, dirname
-import sys
+from os.path import join, dirname, abspath, exists
 
 
 # Gestion of errors:
-#   Sonfigration errors 10-19:
-#       10 Unable to load data
-#       11 Error reading the configuration file
-#   Saving data errors 20-29:
-#       20 Unable to save data
-# 30 Conclusion during the competions
+#   Configuration errors 1:
+#       10 No .ini file was given
+#       11 Unable to load data
+#       12 Error reading the configuration file
+# 2 Conclusion during the competions
 
 class Recorder:
-    def __init__(self, names_teams: list, number_of_question_tuple: tuple, total_time: int, base_points: int):
-        self._jolly = {name: 0 for name in names_teams}
-        self._answer = {name: [(total_time, base_points)]
+    def __init__(self, names_teams: list, number_of_question_tuple: tuple, total_time: int, base_points: int, base_value_question: int):
+        self._jolly = {name: None for name in names_teams}
+        self._answer = {name: []
                         for name in names_teams}
         self._values_questions = {question: [
-            (total_time, base_points)] for question in number_of_question_tuple}
-        self._total_teams = {name: [] for name in names_teams}
+            (total_time, base_value_question)] for question in number_of_question_tuple}
+        self._total_teams = {name: [(total_time, base_points)]
+                             for name in names_teams}
 
     def record_jolly(self, name_team: str, question: int):
         self._jolly[name_team] = question
@@ -45,7 +45,8 @@ class Recorder:
             self._values_questions[question].append((time, value))
 
     def record_total_teams(self, name_team: str, time: int, value: int):
-        self._total_teams[name_team].append((time, value))
+        if self._total_teams[name_team][-1][1] != value:
+            self._total_teams[name_team].append((time, value))
 
     def __str__(self):
         return str((self._jolly, self._answer, self._values_questions, self._total_teams))
@@ -59,22 +60,38 @@ class Main(Tk):
 
     def __init__(self):
 
+        ini_file_path = abspath(join(dirname(__file__), 'Config.ini'))
+        if not exists(ini_file_path):
+
+            ini_file_path = askopenfilename(
+                filetypes=[("Configuration files", "*.ini")])
+
+            if ini_file_path == "":
+
+                from tkinter.messagebox import showerror
+                showerror(
+                    "Error", "No .ini file was given.")
+                exit(10)
+
         try:
-            config = ConfigParser()
-            config.read(join(dirname(__file__), 'config.ini')
-                        if len(sys.argv) == 1 else sys.argv[1])
+            open(ini_file_path, "r")
 
-        except Exception:
-
+        except (FileNotFoundError, IOError, PermissionError):
             from tkinter.messagebox import showerror
             showerror(
-                "Error", f"Unable to find the config.ini file")
-            exit(10)
+                "Error", "Unable to find or read the config.ini file")
+            exit(11)
+
+        else:
+
+            config = ConfigParser()
+            config.read(ini_file_path)
 
         try:
 
             # teams' names
-            self.NAMES_TEAMS = tuple(config.get('Teams', 'teams').split(', '))
+            self.NAMES_TEAMS = tuple(
+                config.get('Teams', 'teams').split(', '))
 
             # genaration timer
             self._TOTAL_TIME = self._timer_seconds = config.getint(
@@ -92,9 +109,15 @@ class Main(Tk):
                 config.get('Points', 'bonus_fulled'))
             self._N_BONUS_FULLED = len(self._BONUS_FULLED)
 
+            # 0: solution
+            # 1: correct
+            # 2: incorrect
+            # 3: value
+
+            value = config.getint('Points', 'vantage')
+
             self._solutions = [None] + [
-                {'solution': solution, 'correct': 0, 'incorrect': 0,
-                    'value': config.getint('Points', 'vantage')}
+                [solution,  0,  0, value]
                 for solution in literal_eval(config.get('Solutions', 'solutions'))
             ]
 
@@ -103,26 +126,28 @@ class Main(Tk):
             self._NUMBER_OF_QUESTIONS_RANGE = range(
                 1, self._NUMBER_OF_QUESTIONS+1)
 
+            # 0: errors
+            # 1: status
+            # 2: jolly
+            # 3: bonus
+
             # list point, bonus, n_fulled
-            self._list_point = {name: [self._NUMBER_OF_QUESTIONS * 10] + [{'errors': 0, 'status': 0, 'jolly': 1, 'bonus': 0}
-                                                                          for _ in self._NUMBER_OF_QUESTIONS_RANGE] for name in self.NAMES_TEAMS}
+
+            self._list_point = {
+                name: [self._NUMBER_OF_QUESTIONS * 10] + [[0, 0, 1, 0]
+                                                          for _ in self._NUMBER_OF_QUESTIONS_RANGE] for name in self.NAMES_TEAMS}
+
             self._fulled = 0
 
-            # data recording
-            self._NAME_FILE = config.get('Recording', 'name_file'),
-            self._DIRECTORY_RECORDING = config.get(
-                'Recording', 'directory_recording')
-            self._data_saving_success = False
-
             self._recorder = Recorder(
-                self.NAMES_TEAMS, self._NUMBER_OF_QUESTIONS_RANGE, self._TOTAL_TIME, self._NUMBER_OF_QUESTIONS * 10)
+                self.NAMES_TEAMS, self._NUMBER_OF_QUESTIONS_RANGE, self._TOTAL_TIME, self._NUMBER_OF_QUESTIONS * 10, value)
 
         except configparser.NoSectionError:
 
             from tkinter.messagebox import showerror
             showerror(
                 "Error", f"An error orccured reading the config.ini file")
-            exit(11)
+            exit(12)
 
         else:
 
@@ -131,20 +156,91 @@ class Main(Tk):
             self.title("Competitors")
             self.geometry('1850x630')
             self.resizable(True, False)
-            self.iconbitmap(join(dirname(__file__), 'MathScore.ico'))
+
+            try:
+                self.iconbitmap(
+                    abspath(join(dirname(__file__), 'MathScore.ico')))
+            except (FileNotFoundError, IOError, PermissionError):
+                pass
 
             # widget costruction
             self.timer_label = Label(self, font=('Helvetica', 18, 'bold'))
             self.timer_label.pack()
-            self.start_button = Button(
-                self, text="Start", command=self.start_competition)
-            self.start_button.pack()
             self.generate_clock()
 
-            self.protocol('WM_DELETE_WINDOW', lambda: exit(3 if self._timer_seconds !=
-                                                           0 else 20 if self._data_saving_success else 0))
+            self.main_button = Button(
+                self, text="Start", command=self.start_competition)
+            self.main_button.pack()
 
-    # methods about the progress ot time
+            points_label = Frame(self, width=1800, height=600)
+            points_label.pack()
+
+            # Creazione del canvas all'interno dell'etichetta dei punti
+            canvas = Canvas(
+                points_label,
+                width=1800,
+                height=600,
+                scrollregion=(0, 0, 1800, len(self.NAMES_TEAMS) * 26),
+            )
+            canvas.pack(side='left', expand=True, fill='both')
+
+            # Aggiunta di una barra di scorrimento verticale
+            scrollbar = Scrollbar(points_label, command=canvas.yview)
+            scrollbar.pack(side='right', fill='y')
+
+            canvas.configure(yscrollcommand=scrollbar.set)
+
+            self.frame_point = Frame(
+                canvas, width=1800, height=len(self.NAMES_TEAMS) * 26)
+            canvas.create_window((0, 0), window=self.frame_point, anchor='nw')
+
+            self.protocol('WM_DELETE_WINDOW', lambda: exit(2 if self._timer_seconds !=
+                                                           0 else 0))
+
+    def run(self):
+
+        Thread(target=self.update_main()).start()
+
+        if self._timer_seconds > 0:
+            self.after(1000, self.run)
+        else:
+            self.main_button.configure(
+                state='normal', text="Show ranking", command=self.show_ranking)
+            self.timer_label.destroy()
+
+    def update_main(self):
+
+        self._timer_seconds -= 1
+        self.generate_clock()
+
+        # update points each minut
+        if self._timer_seconds % 60 == 0 and self._timer_seconds >= 1200:
+            for question in self._NUMBER_OF_QUESTIONS_RANGE:
+                if self._solutions[question][1] < self._DERIVE:
+                    self._solutions[question][3] += 1
+
+        if self._timer_seconds > 30:
+            self.update_entry()
+
+        if self._timer_seconds == (self._TOTAL_TIME - self._TIME_FOR_JOLLY):
+            self.jolly_GUI.destroy()
+
+        remove point label befor the end
+        if self._timer_seconds == 30:
+
+            # Clear all widgets in the frame except protected columns
+            for widget in self.frame_point.winfo_children():
+                widget.destroy()
+
+        for team in self.NAMES_TEAMS:
+            self._recorder.record_total_teams(
+                team, self._timer_seconds, self.total_team_point(team))
+
+        for question in self._NUMBER_OF_QUESTIONS_RANGE:
+            self._recorder.record_values_questions(
+                question, self._timer_seconds, self.point_answer(question))
+
+        # methods about the progress ot time
 
     def start_competition(self):
         """
@@ -153,87 +249,37 @@ class Main(Tk):
         self.arbiter_GUI = Arbiter_GUI(self)
         self.jolly_GUI = Jolly_GUI(self)
 
-        self.start_button.config(state='disabled')
+        self.main_button.configure(state='disabled')
 
-        self.point_label_costructor()
-        self.update_timer()
+        self.stable_element_builder()
+
+        self.run()
 
     def show_ranking(self):
+
+        self.main_button.configure(state='disabled')
+
+        try:
+
+            asksaveasfile(mode='w', defaultextension=".txt", filetypes=[("Text files", "*.txt")], parent=self).write(
+                str(self._recorder))
+
+        except Exception:
+
+            from tkinter.messagebox import showerror
+            from subprocess import run
+
+            showerror(
+                "Error",
+                f"An error occurred saving data, data will be copied it to the clipbord.",
+            )
+
+            run('clip', universal_newlines=True,
+                input=str(self._recorder))
+
         self.arbiter_GUI.destroy()
-        self.point_label_costructor()
-        self.ranking_button.configure(state='disabled')
-
-    def update_timer(self):
-        """
-        Update timer and launch bot
-        Is the most impotant metod for the
-        """
-
-        # if time is finished
-        if self._timer_seconds == 0:
-
-            try:
-
-                open(join(self._DIRECTORY_RECORDING,
-                          f"{self._NAME_FILE}.txt"), 'w').write(str(self._recorder))
-                self._data_saving_success = True
-
-            except Exception:
-
-                from tkinter.messagebox import showerror
-                showerror(
-                    "Error",
-                    f"An error occurred saving data, data will be printed in the terminal.",
-                )
-                print(str(self._recorder))
-
-            finally:
-
-                self.start_button.destroy()
-                self.timer_label.destroy()
-                self.ranking_button = Button(self, text="Show ranking",
-                                             command=self.show_ranking, width=30)
-                self.ranking_button.pack()
-
-        else:
-
-            self._timer_seconds -= 1
-            self.generate_clock()
-
-            # update points each minut
-            if self._timer_seconds % 60 == 0:
-                Thread(target=self.bot()).start
-
-            if self._timer_seconds == (self._TOTAL_TIME - self._TIME_FOR_JOLLY):
-                self.jolly_GUI.destroy()
-
-            # remove point label befor the end
-            if self._timer_seconds == 30:
-                self.points_label.destroy()
-
-            self.after(50, self.update_timer)
-
-    def bot(self):
-        """
-        Increase poits amutomaticaly
-        """
-        for question in self._NUMBER_OF_QUESTIONS_RANGE:
-            if (
-                self._solutions[question]['correct'] < self._DERIVE
-                and self._timer_seconds >= 1200
-            ):
-                self._solutions[question]['value'] += 1
-
-        if self._timer_seconds >= 30:
-            self.update_entry()
-
-        for team in self.NAMES_TEAMS:
-            self._recorder.record_total_teams(
-                team, self._timer_seconds, self.total_squad_point(team))
-
-        for question in self._NUMBER_OF_QUESTIONS_RANGE:
-            self._recorder.record_values_questions(
-                question, self._timer_seconds, self.point_answer(question))
+        self.stable_element_builder()
+        self.update_entry()
 
     # metods about wiget
 
@@ -241,44 +287,20 @@ class Main(Tk):
         """
         Generate the clock label
         """
-        self.timer_label.config(
+        self.timer_label.configure(
             text=f"Time left: {self._timer_seconds // 3600: 02}: {(self._timer_seconds % 3600) // 60: 02}: {self._timer_seconds % 60: 02}"
         )
 
-    def point_label_costructor(self):
+    def stable_element_builder(self):
         """
         Generate canvas whit scrollbar for ranking
         """
-
-        self.points_label = Frame(self, width=1800, height=600)
-        self.points_label.pack(pady=20)
-
-        # Creazione del canvas all'interno dell'etichetta dei punti
-        canvas = Canvas(
-            self.points_label,
-            width=1800,
-            height=600,
-            scrollregion=(0, 0, 1800, len(self.NAMES_TEAMS) * 26),
-        )
-        canvas.pack(side='left', expand=True, fill='both')
-
-        # Aggiunta di una barra di scorrimento verticale
-        scrollbar = Scrollbar(self.points_label, command=canvas.yview)
-        scrollbar.pack(side='right', fill='y')
-
-        canvas.config(yscrollcommand=scrollbar.set)
-
-        self.frame_point = Frame(
-            canvas, width=1800, height=len(self.NAMES_TEAMS) * 26)
-        canvas.create_window((0, 0), window=self.frame_point, anchor='nw')
 
         # Creazione delle etichette per ogni domanda e riga
         for question in self._NUMBER_OF_QUESTIONS_RANGE:
             Label(self.frame_point, text=f"{question}", width=6).grid(
                 column=question+1, row=0
             )
-
-        self.update_entry()
 
     def update_entry(self):
         """
@@ -292,7 +314,6 @@ class Main(Tk):
 
         # Create value labels for each question
         for question in self._NUMBER_OF_QUESTIONS_RANGE:
-            print(question)
             value_label = Entry(self.frame_point, width=6, bd=5)
             value_label.insert(0, str(self.point_answer(question)))
             value_label.grid(column=question + 1, row=1)
@@ -300,7 +321,7 @@ class Main(Tk):
         # Populate team points and color-code entries
         for row, frame in enumerate(
             sorted(
-                [(self.total_squad_point(team), team)
+                [(self.total_team_point(team), team)
                  for team in self.NAMES_TEAMS],
                 key=lambda x: x[0],
                 reverse=True,
@@ -314,7 +335,7 @@ class Main(Tk):
             )
 
             total_num = Entry(self.frame_point, width=6, bd=5)
-            total_num.insert(0, str(self.total_squad_point(team)))
+            total_num.insert(0, str(self.total_team_point(team)))
             total_num.grid(column=1, row=row)
 
             for column in self._NUMBER_OF_QUESTIONS_RANGE:
@@ -337,21 +358,23 @@ class Main(Tk):
         """
 
         # if is unanswered
-        if self._list_point[selected_team][entered_question]['status'] == 0:
+        if self._list_point[selected_team][entered_question][1] == 0:
 
             # if correct
-            if entered_answer == self._solutions[entered_question]['solution']:
+            if entered_answer == self._solutions[entered_question][0]:
 
-                self._list_point[selected_team][entered_question]['status'] = 1
-                self._list_point[selected_team][entered_question]['bonus'] = self._BONUS_ANSWER[min(
-                    self._solutions[entered_question]['correct'], self._N_BONUS_ANSWER)]
-                self._solutions[entered_question]['correct'] += 1
+                self._list_point[selected_team][entered_question][1] = 1
+
+                self._list_point[selected_team][entered_question][3] = self._BONUS_ANSWER[min(
+                    self._solutions[entered_question][1], self._N_BONUS_ANSWER)]
+
+                self._solutions[entered_question][1] += 1
 
                 # give bonus
                 if (
                     sum(
                         [
-                            team['status']
+                            team[1]
                             for team in self._list_point[selected_team][1:]
                         ]
                     )
@@ -364,18 +387,16 @@ class Main(Tk):
 
             # if wrong
             else:
-                self._list_point[selected_team][entered_question]['errors'] += 1
-                self._solutions[entered_question]['incorrect'] += (
+                self._list_point[selected_team][entered_question][0] += 1
+                self._solutions[entered_question][2] += (
                     1
-                    if self._list_point[selected_team][entered_question]['errors']
+                    if self._list_point[selected_team][entered_question][0]
                     == 1
                     else 0
                 )
 
         self._recorder.record_answer(
             selected_team, entered_question, entered_answer)
-
-        self.update_entry()
 
     def submit_jolly(self, selected_team: str, entered_question: int):
         """
@@ -385,23 +406,22 @@ class Main(Tk):
         if self._timer_seconds > (self._TOTAL_TIME - 600) and (
             sum(
                 [
-                    question['jolly']
+                    question[2]
                     for question in self._list_point[selected_team][1:]
                 ]
             )
             == self._NUMBER_OF_QUESTIONS
         ):
             # adding jolly
-            self._list_point[selected_team][entered_question]['jolly'] = 2
+            self._list_point[selected_team][entered_question][2] = 2
             self._recorder.record_jolly(selected_team, entered_question)
-            self.update_entry()
 
     # methods to calculate points
     def point_answer(self, question: int) -> int:
         """
         Return the value of answer
         """
-        return int(self._solutions[question]['value'] + self._solutions[question]['incorrect'] * 2)
+        return int(self._solutions[question][3] + self._solutions[question][2] * 2)
 
     def point_answer_x_squad(
         self, team: str, question: Union[Literal['base'], int], jolly_simbol: bool = False
@@ -413,18 +433,18 @@ class Main(Tk):
 
         # Calculate the output points
         result = (
-            answer_point['status'] * self.point_answer(question)
-            - answer_point['errors'] * 10
-            + answer_point['bonus']
-        ) * answer_point['jolly']
+            answer_point[1] * self.point_answer(question)
+            - answer_point[0] * 10
+            + answer_point[3]
+        ) * answer_point[2]
 
         return (
             f"{result} J"
-            if answer_point['jolly'] == 2 and jolly_simbol
+            if answer_point[2] == 2 and jolly_simbol
             else result
         )
 
-    def total_squad_point(self, team: str) -> int:
+    def total_team_point(self, team: str) -> int:
         """
         Return the point of a team
         """
@@ -545,7 +565,7 @@ class Jolly_GUI(Toplevel):
 
 if __name__ == "__main__":
 
-    from cProfile import run
-    run('Main()')
+    # from cProfile import run
+    # run('Main()')
 
-    # Main().mainloop()
+    Main().mainloop()
