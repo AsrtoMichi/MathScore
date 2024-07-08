@@ -3,8 +3,8 @@
 
 # GUI
 import configparser
-from typing import Union, Literal
-from tkinter import Tk, Toplevel, Canvas, StringVar, Entry, Label
+from typing import List, Union, Literal
+from tkinter import IntVar, Tk, Toplevel, Canvas, StringVar, Entry, Label
 from tkinter.ttk import Frame, Button, Scrollbar, Combobox
 from tkinter.filedialog import askopenfilename, asksaveasfile
 
@@ -123,7 +123,7 @@ class Main(Tk):
 
             self._NUMBER_OF_QUESTIONS = len(self._solutions)-1
 
-            self._NUMBER_OF_QUESTIONS_RANGE = range(
+            self._NUMBER_OF_QUESTIONS_RANGE_1 = range(
                 1, self._NUMBER_OF_QUESTIONS+1)
 
             # 0: errors
@@ -135,12 +135,12 @@ class Main(Tk):
 
             self._list_point = {
                 name: [self._NUMBER_OF_QUESTIONS * 10] + [[0, 0, 1, 0]
-                                                          for _ in self._NUMBER_OF_QUESTIONS_RANGE] for name in self.NAMES_TEAMS}
+                                                          for _ in self._NUMBER_OF_QUESTIONS_RANGE_1] for name in self.NAMES_TEAMS}
 
             self._fulled = 0
 
             self._recorder = Recorder(
-                self.NAMES_TEAMS, self._NUMBER_OF_QUESTIONS_RANGE, self._TOTAL_TIME, self._NUMBER_OF_QUESTIONS * 10, value)
+                self.NAMES_TEAMS, self._NUMBER_OF_QUESTIONS_RANGE_1, self._TOTAL_TIME, self._NUMBER_OF_QUESTIONS * 10, value)
 
         except configparser.NoSectionError:
 
@@ -154,7 +154,7 @@ class Main(Tk):
             # creation Main window and castomization
             super().__init__()
             self.title("Competitors")
-            self.geometry('1850x630')
+            self.geometry('1600x630')
             self.resizable(True, False)
 
             try:
@@ -172,15 +172,15 @@ class Main(Tk):
                 self, text="Start", command=self.start_competition)
             self.main_button.pack()
 
-            points_label = Frame(self, width=1800, height=600)
+            points_label = Frame(self, width=1550, height=600)
             points_label.pack()
 
             # Creazione del canvas all'interno dell'etichetta dei punti
             canvas = Canvas(
                 points_label,
-                width=1800,
+                width=1550,
                 height=600,
-                scrollregion=(0, 0, 1800, len(self.NAMES_TEAMS) * 26),
+                scrollregion=(0, 0, 1550, len(self.NAMES_TEAMS) * 26),
             )
             canvas.pack(side='left', expand=True, fill='both')
 
@@ -194,8 +194,22 @@ class Main(Tk):
                 canvas, width=1800, height=len(self.NAMES_TEAMS) * 26)
             canvas.create_window((0, 0), window=self.frame_point, anchor='nw')
 
+            self.entry_quetion_x_team = [
+                [None] + [Entry(self.frame_point, width=6, bd=5, state='readonly', readonlybackground='white') for _ in self._NUMBER_OF_QUESTIONS_RANGE_1] for _ in self.NAMES_TEAMS]
+
+            self.stringvar_question_x_team = [
+                [None] + [IntVar() for _ in self._NUMBER_OF_QUESTIONS_RANGE_1] for _ in self.NAMES_TEAMS]
+
+            self.stringvar_question = [None] + [IntVar()
+                                                for _ in self._NUMBER_OF_QUESTIONS_RANGE_1]
+
+            self.stringvar_start_row = [
+                [StringVar(), IntVar()] for _ in self.NAMES_TEAMS]
+
             self.protocol('WM_DELETE_WINDOW', lambda: exit(2 if self._timer_seconds !=
                                                            0 else 0))
+
+    # method about runtime
 
     def run(self):
 
@@ -215,7 +229,7 @@ class Main(Tk):
 
         # update points each minut
         if self._timer_seconds % 60 == 0 and self._timer_seconds >= 1200:
-            for question in self._NUMBER_OF_QUESTIONS_RANGE:
+            for question in self._NUMBER_OF_QUESTIONS_RANGE_1:
                 if self._solutions[question][1] < self._DERIVE:
                     self._solutions[question][3] += 1
 
@@ -225,18 +239,18 @@ class Main(Tk):
         if self._timer_seconds == (self._TOTAL_TIME - self._TIME_FOR_JOLLY):
             self.jolly_GUI.destroy()
 
-        remove point label befor the end
+        # remove point label befor the end
         if self._timer_seconds == 30:
 
             # Clear all widgets in the frame except protected columns
             for widget in self.frame_point.winfo_children():
-                widget.destroy()
+                widget.grid_forget()
 
         for team in self.NAMES_TEAMS:
             self._recorder.record_total_teams(
                 team, self._timer_seconds, self.total_team_point(team))
 
-        for question in self._NUMBER_OF_QUESTIONS_RANGE:
+        for question in self._NUMBER_OF_QUESTIONS_RANGE_1:
             self._recorder.record_values_questions(
                 question, self._timer_seconds, self.point_answer(question))
 
@@ -257,7 +271,12 @@ class Main(Tk):
 
     def show_ranking(self):
 
-        self.main_button.configure(state='disabled')
+        self.main_button.configure(text="Save data", command=self.save_data)
+        self.arbiter_GUI.destroy()
+        self.stable_element_builder()
+        self.update_entry()
+
+    def save_data(self):
 
         try:
 
@@ -277,10 +296,6 @@ class Main(Tk):
             run('clip', universal_newlines=True,
                 input=str(self._recorder))
 
-        self.arbiter_GUI.destroy()
-        self.stable_element_builder()
-        self.update_entry()
-
     # metods about wiget
 
     def generate_clock(self):
@@ -297,56 +312,59 @@ class Main(Tk):
         """
 
         # Creazione delle etichette per ogni domanda e riga
-        for question in self._NUMBER_OF_QUESTIONS_RANGE:
-            Label(self.frame_point, text=f"{question}", width=6).grid(
-                column=question+1, row=0
+        for column in self._NUMBER_OF_QUESTIONS_RANGE_1:
+
+            Label(self.frame_point, text=f"{column}", width=6).grid(
+                column=column+1, row=0
             )
+
+            Entry(self.frame_point, width=6, bd=5,
+                  textvariable=self.stringvar_question[column], state='readonly', readonlybackground='white').grid(column=column+1, row=1)
+
+        for row in range(len(self.NAMES_TEAMS)):
+
+            Label(self.frame_point, anchor='e', textvariable=self.stringvar_start_row[row][0]).grid(
+                column=0, row=row+2)
+
+            Entry(self.frame_point, width=6, bd=5,
+                  textvariable=self.stringvar_start_row[row][1], state='readonly', readonlybackground='white').grid(column=1, row=row+2)
+
+            for column in self._NUMBER_OF_QUESTIONS_RANGE_1:
+
+                self.entry_quetion_x_team[row][column].configure(
+                    textvariable=self.stringvar_question_x_team[row][column])
+                self.entry_quetion_x_team[row][column].grid(
+                    column=column+1, row=row+2)
 
     def update_entry(self):
         """
         Update ranking
         """
 
-        # Clear all widgets in the frame except protected columns
-        for widget in self.frame_point.winfo_children():
-            if widget.grid_info()['row'] != 0:
-                widget.destroy()
-
         # Create value labels for each question
-        for question in self._NUMBER_OF_QUESTIONS_RANGE:
-            value_label = Entry(self.frame_point, width=6, bd=5)
-            value_label.insert(0, str(self.point_answer(question)))
-            value_label.grid(column=question + 1, row=1)
+        for question in self._NUMBER_OF_QUESTIONS_RANGE_1:
+
+            self.stringvar_question[question].set(
+                self.point_answer(question))
 
         # Populate team points and color-code entries
-        for row, frame in enumerate(
-            sorted(
-                [(self.total_team_point(team), team)
-                 for team in self.NAMES_TEAMS],
-                key=lambda x: x[0],
-                reverse=True,
-            ),
-            2,
-        ):
-            team = frame[1]
+        for row, team in enumerate(sorted(self.NAMES_TEAMS,
+                                          key=lambda team: self.total_team_point(
+                                              team), reverse=True)):
 
-            Label(self.frame_point, text=f"{team}: ", anchor='e').grid(
-                column=0, row=row
-            )
+            self.stringvar_start_row[row][0].set(team)
 
-            total_num = Entry(self.frame_point, width=6, bd=5)
-            total_num.insert(0, str(self.total_team_point(team)))
-            total_num.grid(column=1, row=row)
+            self.stringvar_start_row[row][1].set(self.total_team_point(team))
 
-            for column in self._NUMBER_OF_QUESTIONS_RANGE:
+            for question in self._NUMBER_OF_QUESTIONS_RANGE_1:
 
-                points = self.point_answer_x_squad(team, column)
+                points = self.point_answer_x_squad(team, question)
 
-                total_num = Entry(self.frame_point, width=6, bd=5,
-                                  bg='red' if points < 0 else 'green' if points > 0 else 'white')
-                total_num.insert(
-                    0, self.point_answer_x_squad(team, column, True))
-                total_num.grid(column=column + 1, row=row)
+                self.stringvar_question_x_team[row][question].set(
+                    self.point_answer_x_squad(team, question))
+
+                self.entry_quetion_x_team[row][question].config(
+                    readonlybackground='red' if points < 0 else 'green' if points > 0 else 'white', fg='blue' if self._list_point[team][question][2] == 2 else 'black')
 
     # methods to submit answer
 
@@ -423,33 +441,23 @@ class Main(Tk):
         """
         return int(self._solutions[question][3] + self._solutions[question][2] * 2)
 
-    def point_answer_x_squad(
-        self, team: str, question: Union[Literal['base'], int], jolly_simbol: bool = False
-    ) -> Union[int, str]:
+    def point_answer_x_squad(self, team: str, question:  int) -> int:
         """
         Return the points made a team in a question
         """
-        answer_point = self._list_point[team][question]
-
-        # Calculate the output points
-        result = (
-            answer_point[1] * self.point_answer(question)
-            - answer_point[0] * 10
-            + answer_point[3]
-        ) * answer_point[2]
 
         return (
-            f"{result} J"
-            if answer_point[2] == 2 and jolly_simbol
-            else result
-        )
+            self._list_point[team][question][1] * self.point_answer(question)
+            - self._list_point[team][question][0] * 10
+            + self._list_point[team][question][3]
+        ) * self._list_point[team][question][2]
 
     def total_team_point(self, team: str) -> int:
         """
         Return the point of a team
         """
         return sum(self.point_answer_x_squad(team, question)
-                   for question in self._NUMBER_OF_QUESTIONS_RANGE
+                   for question in self._NUMBER_OF_QUESTIONS_RANGE_1
                    ) + self._list_point[team][0]
 
 
