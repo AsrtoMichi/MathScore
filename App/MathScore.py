@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 # GUI
+
 from tkinter import IntVar, Tk, Toplevel, Canvas, StringVar, Entry, Label
 from tkinter.ttk import Frame, Button, Scrollbar, Combobox
 from tkinter.filedialog import askopenfilename, asksaveasfile
@@ -13,11 +14,11 @@ from threading import Thread
 from subprocess import run
 from sched import scheduler
 from time import time as t_time, sleep
-from sys import exit as _exit
+from sys import exit as sys_exit
 
 
 # .ini reading
-from configparser import ConfigParser, NoSectionError
+from configparser import ConfigParser, NoSectionError, ParsingError, NoOptionError
 from ast import literal_eval
 from os.path import join, dirname, abspath, exists
 
@@ -28,6 +29,14 @@ from os.path import join, dirname, abspath, exists
 #       11 Unable to load data
 #       12 Error reading the configuration file
 # 2 Conclusion during the competions
+
+
+def set_icon(window: Tk):
+    try:
+        window.iconbitmap(abspath(join(dirname(__file__), 'MathScore.ico')))
+    except (FileNotFoundError, IOError, PermissionError):
+        pass
+
 
 class Recorder:
     def __init__(self, names_teams: list, number_of_question_tuple: tuple, total_time: int, base_points: int, base_value_question: int):
@@ -77,7 +86,7 @@ class Main(Tk):
 
                 showerror(
                     "Error", "No .ini file was given.")
-                _exit(10)
+                sys_exit(10)
 
         try:
             open(ini_file_path, "r")
@@ -85,10 +94,9 @@ class Main(Tk):
         except (FileNotFoundError, IOError, PermissionError):
             showerror(
                 "Error", "Unable to find or read the config.ini file")
-            _exit(11)
+            sys_exit(11)
 
         else:
-
             config = ConfigParser()
             config.read(ini_file_path)
 
@@ -147,11 +155,11 @@ class Main(Tk):
             self._recorder = Recorder(
                 self.NAMES_TEAMS, self._NUMBER_OF_QUESTIONS_RANGE_1, self._TOTAL_TIME, self._NUMBER_OF_QUESTIONS * 10, value)
 
-        except NoSectionError:
+        except (NoSectionError, ValueError, ParsingError, NoOptionError, SyntaxError):
 
             showerror(
-                "Error", f"An error orccured reading the config.ini file")
-            _exit(12)
+                "Error", "An error orccured reading the config.ini file")
+            sys_exit(12)
 
         else:
 
@@ -160,11 +168,7 @@ class Main(Tk):
             self.title("Competitors")
             self.geometry('1600x630')
             self.resizable(True, False)
-            try:
-                self.iconbitmap(
-                    abspath(join(dirname(__file__), 'MathScore.ico')))
-            except (FileNotFoundError, IOError, PermissionError):
-                pass
+            set_icon(self)
 
             # widget costruction
             self.timer_label = Label(self, font=('Helvetica', 18, 'bold'))
@@ -207,11 +211,12 @@ class Main(Tk):
 
             self.s.enter(self._TOTAL_TIME, 4, self.timer_label.destroy)
 
-            for time in range(1, self._TOTAL_TIME):
+            for time in range(self._TOTAL_TIME - 30, self._TOTAL_TIME):
                 self.s.enter(time, 2, self.update_main)
 
             for time in range(1, self._TOTAL_TIME - 30):
                 self.s.enter(time, 1, self.update_entry)
+                self.s.enter(time, 2, self.update_main)
 
             for time in range(60, self._TOTAL_TIME - 1200, 60):
 
@@ -235,8 +240,8 @@ class Main(Tk):
             self.stringvar_start_row = [
                 [StringVar(), IntVar()] for _ in self.NAMES_TEAMS]
 
-            self.protocol('WM_DELETE_WINDOW', lambda: _exit(2 if self._timer_seconds !=
-                                                            0 else 0) if askokcancel("Closing confirm", "All data can be losted.") else None)
+            self.protocol('WM_DELETE_WINDOW', lambda: sys_exit(2 if self._timer_seconds !=
+                                                               0 else 0) if askokcancel("Closing confirm", "All data can be losted.") else None)
 
     # method about runtime
 
@@ -290,7 +295,7 @@ class Main(Tk):
 
             showwarning(
                 "Error",
-                f"An error occurred saving data, data will be copied it to the clipbord.",
+                "An error occurred saving data, data will be copied it to the clipbord.",
             )
 
             run('clip', universal_newlines=True,
@@ -460,62 +465,84 @@ class Main(Tk):
                    ) + self._list_point[team][0]
 
 
-class Arbiter_GUI(Toplevel):
+class Jolly_GUI(Toplevel):
     def __init__(self, main: Main):
+
         super().__init__(main)
 
-        self.submit_answer_main = main.submit_answer
+        self.submit_method_main = main.submit_jolly
 
-        # starting artiter's window
-        self.title("Arbiter")
-        self.geometry("500x210")
+        self.title("Jolly")
+        self.geometry("250x200")
         self.resizable(False, False)
-        try:
-            self.iconbitmap(
-                abspath(join(dirname(__file__), 'MathScore.ico')))
-        except (FileNotFoundError, IOError, PermissionError):
-            pass
+        set_icon(self)
 
-        # craation entry for data
-        Label(self, text="Team:").pack()
+        # creatition entry for team
+        Label(self, text="Team:").grid(row=0)
 
-        self.selected_team = StringVar(value="")
+        self.team_var = StringVar(value="")
         Combobox(
             self,
-            textvariable=self.selected_team,
+            textvariable=self.team_var,
             values=main.NAMES_TEAMS,
             state='readonly',
-        ).pack()
+        ).grid(row=1)
 
-        Label(self, text="Question number:").pack()
-        self.question_var = IntVar()
-        self.question_entry = Entry(self, textvariable=self.question_var)
-        self.question_entry.pack()
+        Label(self, text="Question number:").grid(row=2)
 
-        Label(self, text="Insert an answer:").pack()
-        self.answer_var = IntVar()
-        self.answer_entry = Entry(self, textvariable=self.answer_var)
-        self.answer_entry.pack()
+        self.question_var = IntVar(value="")
+        Entry(self, textvariable=self.question_var).grid(row=3)
 
-        self.selected_team.set("")
-        self.question_entry.delete(0, "end")
-        self.answer_entry.delete(0, "end")
+        Button(self, text="Submit", command=self.submit_method).grid(
+            row=6, pady=15)
 
-        Button(self, text="Submit", command=self.submit_answer).pack(pady=15)
-
-        self.bind('<Return>', lambda key: self.submit_answer())
+        self.bind('<Return>', lambda key: self.submit_method())
 
         self.protocol('WM_DELETE_WINDOW', lambda: None)
 
-    def submit_answer(self):
+    def submit_method(self):
+        """
+        The method associated to the button
+        """
+        try:
+            Thread(
+                target=self.submit_method_main(
+                    self.team_var.get(), self.question_var.get())
+            ).start()
+
+        except TclError:
+            pass
+
+        finally:
+
+            self.team_var.set("")
+            self.question_var.set("")
+
+
+class Arbiter_GUI(Jolly_GUI):
+
+    def __init__(self, main: Main):
+
+        super().__init__(main)
+
+        self.submit_method_main = main.submit_answer
+
+        self.title("Arbiter")
+
+        Label(self, text="Insert an answer:").grid(row=4)
+        self.answer_var = IntVar(value="")
+        Entry(
+            self, textvariable=self.answer_var).grid(row=5)
+
+    def submit_method(self):
         """
         The method associated to the button
         """
         try:
 
             Thread(
-                target=self.submit_answer_main(
-                    self.selected_team.get(),
+                target=self.submit_method_main(
+                    self.team_var.get(),
                     self.question_var.get(),
                     self.answer_var.get(),
                 )
@@ -526,70 +553,9 @@ class Arbiter_GUI(Toplevel):
 
         finally:
 
-            self.selected_team.set("")
-            self.question_entry.delete(0, "end")
-            self.answer_entry.delete(0, "end")
-
-
-class Jolly_GUI(Toplevel):
-    def __init__(self, main: Main):
-        super().__init__(main)
-
-        self.submit_jolly_main = main.submit_jolly
-
-        # starting jolly window
-        self.title("Jolly")
-        self.geometry("500x160")
-        self.resizable(False, False)
-        try:
-            self.iconbitmap(
-                abspath(join(dirname(__file__), 'MathScore.ico')))
-        except (FileNotFoundError, IOError, PermissionError):
-            pass
-
-        # creatition entry for team
-        Label(self, text="Team:").pack()
-
-        self.selected_team_jolly = StringVar(value="")
-
-        Combobox(
-            self,
-            textvariable=self.selected_team_jolly,
-            values=main.NAMES_TEAMS,
-            state='readonly',
-        ).pack()
-
-        # creatition entry for question
-        Label(self, text="Question number:").pack()
-        self.question_var = IntVar()
-        self.question_entry_jolly = Entry(self, textvariable=self.question_var)
-        self.question_entry_jolly.pack()
-
-        self.selected_team_jolly.set("")
-        self.question_entry_jolly.delete(0, "end")
-
-        Button(self, text="Submit", command=self.submit_jolly).pack(pady=15)
-
-        self.bind('<Return>', lambda key: self.submit_jolly())
-
-        self.protocol('WM_DELETE_WINDOW', lambda: None)
-
-    def submit_jolly(self):
-        """
-        The method associated to the button
-        """
-        try:
-            Thread(
-                target=self.submit_jolly_main(
-                    self.selected_team_jolly.get(), self.question_var.get())
-            ).start()
-
-        except TclError:
-            pass
-
-        finally:
-            self.selected_team_jolly.set("")
-            self.question_entry_jolly.delete(0, "end")
+            self.team_var.set("")
+            self.question_var.set("")
+            self.answer_var.set("")
 
 
 if __name__ == "__main__":
