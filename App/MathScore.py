@@ -12,9 +12,10 @@ from threading import Thread
 from subprocess import run
 from sched import scheduler
 from time import time as t_time, sleep
+from sys import exit as _exit
 
 # .ini reading
-from configparser import ConfigParser, NoSectionError, e
+from configparser import ConfigParser, NoSectionError
 from ast import literal_eval
 from os.path import join, dirname, abspath, exists
 
@@ -63,7 +64,7 @@ class Main(Tk):
     def __init__(self):
 
         ini_file_path = abspath(join(dirname(__file__), 'Config.ini'))
-        
+
         if not exists(ini_file_path):
 
             ini_file_path = askopenfilename(
@@ -73,7 +74,7 @@ class Main(Tk):
 
                 showerror(
                     "Error", "No .ini file was given.")
-                exit(10)
+                _exit(10)
 
         try:
             open(ini_file_path, "r")
@@ -81,7 +82,7 @@ class Main(Tk):
         except (FileNotFoundError, IOError, PermissionError):
             showerror(
                 "Error", "Unable to find or read the config.ini file")
-            exit(11)
+            _exit(11)
 
         else:
 
@@ -147,7 +148,7 @@ class Main(Tk):
 
             showerror(
                 "Error", f"An error orccured reading the config.ini file")
-            exit(12)
+            _exit(12)
 
         else:
 
@@ -156,12 +157,6 @@ class Main(Tk):
             self.title("Competitors")
             self.geometry('1600x630')
             self.resizable(True, False)
-
-            try:
-                self.iconbitmap(
-                    abspath(join(dirname(__file__), 'MathScore.ico')))
-            except (FileNotFoundError, IOError, PermissionError):
-                pass
 
             # widget costruction
             self.timer_label = Label(self, font=('Helvetica', 18, 'bold'))
@@ -236,8 +231,8 @@ class Main(Tk):
             self.stringvar_start_row = [
                 [StringVar(), IntVar()] for _ in self.NAMES_TEAMS]
 
-            self.protocol('WM_DELETE_WINDOW', lambda: exit(2 if self._timer_seconds !=
-                                                           0 else 0) if askokcancel("Closing confirm", "All data will be losted.") else None)
+            self.protocol('WM_DELETE_WINDOW', lambda: _exit(2 if self._timer_seconds !=
+                                                            0 else 0) if askokcancel("Closing confirm", "All data will be losted.") else None)
 
     # method about runtime
 
@@ -467,7 +462,6 @@ class Arbiter_GUI(Toplevel):
         self.title("Arbiter")
         self.geometry("500x210")
         self.resizable(False, False)
-        self.iconbitmap(join(dirname(__file__), "MathScore.ico"))
 
         # craation entry for data
         Label(self, text="Team:").pack()
@@ -530,7 +524,6 @@ class Jolly_GUI(Toplevel):
         self.title("Jolly")
         self.geometry("500x160")
         self.resizable(False, False)
-        self.iconbitmap(join(dirname(__file__), "MathScore.ico"))
 
         # creatition entry for team
         Label(self, text="Team:").pack()
