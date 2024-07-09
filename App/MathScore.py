@@ -2,17 +2,19 @@
 # -*- coding: utf-8 -*-
 
 # GUI
-import configparser
-from typing import List, Union, Literal
 from tkinter import IntVar, Tk, Toplevel, Canvas, StringVar, Entry, Label
 from tkinter.ttk import Frame, Button, Scrollbar, Combobox
 from tkinter.filedialog import askopenfilename, asksaveasfile
+from tkinter.messagebox import askokcancel, showerror, showwarning
 
 # os
 from threading import Thread
+from subprocess import run
+from sched import scheduler
+from time import time as t_time, sleep
 
 # .ini reading
-from configparser import ConfigParser
+from configparser import ConfigParser, NoSectionError, e
 from ast import literal_eval
 from os.path import join, dirname, abspath, exists
 
@@ -61,6 +63,7 @@ class Main(Tk):
     def __init__(self):
 
         ini_file_path = abspath(join(dirname(__file__), 'Config.ini'))
+        
         if not exists(ini_file_path):
 
             ini_file_path = askopenfilename(
@@ -68,7 +71,6 @@ class Main(Tk):
 
             if ini_file_path == "":
 
-                from tkinter.messagebox import showerror
                 showerror(
                     "Error", "No .ini file was given.")
                 exit(10)
@@ -77,7 +79,6 @@ class Main(Tk):
             open(ini_file_path, "r")
 
         except (FileNotFoundError, IOError, PermissionError):
-            from tkinter.messagebox import showerror
             showerror(
                 "Error", "Unable to find or read the config.ini file")
             exit(11)
@@ -142,9 +143,8 @@ class Main(Tk):
             self._recorder = Recorder(
                 self.NAMES_TEAMS, self._NUMBER_OF_QUESTIONS_RANGE_1, self._TOTAL_TIME, self._NUMBER_OF_QUESTIONS * 10, value)
 
-        except configparser.NoSectionError:
+        except NoSectionError:
 
-            from tkinter.messagebox import showerror
             showerror(
                 "Error", f"An error orccured reading the config.ini file")
             exit(12)
@@ -194,8 +194,38 @@ class Main(Tk):
                 canvas, width=1800, height=len(self.NAMES_TEAMS) * 26)
             canvas.create_window((0, 0), window=self.frame_point, anchor='nw')
 
+            self.s = scheduler(t_time, sleep)
+
+            self.s.enter(self._TOTAL_TIME - self._TIME_FOR_JOLLY,
+                         3, self.update_entry)
+
+            self.s.enter(self._TOTAL_TIME - 30, 3, lambda: [
+                widget.grid_forget() for widget in self.frame_point.winfo_children()])
+
+            self.s.enter(self._TOTAL_TIME, 3, lambda: [self.main_button.configure(
+                state='normal', text="Show ranking", command=self.jolly_GUI.destroy), self.timer_label.destroy()])
+
+            for time in range(1, self._TOTAL_TIME):
+                self.s.enter(time, 2, self.update_main)
+
+            for time in range(1, self._TOTAL_TIME - 30):
+                self.s.enter(time, 1, self.update_entry)
+
+            for time in range(60, self._TOTAL_TIME - 1200, 60):
+
+                self.s.enter(time, 1, lambda: [
+                    self._solutions[question][3] + 1
+                    for question in self._NUMBER_OF_QUESTIONS_RANGE_1
+                    if self._solutions[question][1] < self._DERIVE
+                ])
+
+            self.s_threads = Thread(
+                target=lambda: self.s.run(blocking=True), daemon=True)
+
             self.entry_quetion_x_team = [
-                [None] + [Entry(self.frame_point, width=6, bd=5, state='readonly', readonlybackground='white') for _ in self._NUMBER_OF_QUESTIONS_RANGE_1] for _ in self.NAMES_TEAMS]
+                [None] + [Entry(self.frame_point, width=6, bd=5, state='readonly', readonlybackground='white')
+                          for _ in self._NUMBER_OF_QUESTIONS_RANGE_1]
+                for _ in self.NAMES_TEAMS]
 
             self.stringvar_question_x_team = [
                 [None] + [IntVar() for _ in self._NUMBER_OF_QUESTIONS_RANGE_1] for _ in self.NAMES_TEAMS]
@@ -207,44 +237,14 @@ class Main(Tk):
                 [StringVar(), IntVar()] for _ in self.NAMES_TEAMS]
 
             self.protocol('WM_DELETE_WINDOW', lambda: exit(2 if self._timer_seconds !=
-                                                           0 else 0))
+                                                           0 else 0) if askokcancel("Closing confirm", "All data will be losted.") else None)
 
     # method about runtime
-
-    def run(self):
-
-        Thread(target=self.update_main()).start()
-
-        if self._timer_seconds > 0:
-            self.after(1000, self.run)
-        else:
-            self.main_button.configure(
-                state='normal', text="Show ranking", command=self.show_ranking)
-            self.timer_label.destroy()
 
     def update_main(self):
 
         self._timer_seconds -= 1
         self.generate_clock()
-
-        # update points each minut
-        if self._timer_seconds % 60 == 0 and self._timer_seconds >= 1200:
-            for question in self._NUMBER_OF_QUESTIONS_RANGE_1:
-                if self._solutions[question][1] < self._DERIVE:
-                    self._solutions[question][3] += 1
-
-        if self._timer_seconds > 30:
-            self.update_entry()
-
-        if self._timer_seconds == (self._TOTAL_TIME - self._TIME_FOR_JOLLY):
-            self.jolly_GUI.destroy()
-
-        # remove point label befor the end
-        if self._timer_seconds == 30:
-
-            # Clear all widgets in the frame except protected columns
-            for widget in self.frame_point.winfo_children():
-                widget.grid_forget()
 
         for team in self.NAMES_TEAMS:
             self._recorder.record_total_teams(
@@ -258,7 +258,7 @@ class Main(Tk):
 
     def start_competition(self):
         """
-        Initialise the timer and block start buttom
+        Start the timer and block start buttom
         """
         self.arbiter_GUI = Arbiter_GUI(self)
         self.jolly_GUI = Jolly_GUI(self)
@@ -267,7 +267,7 @@ class Main(Tk):
 
         self.stable_element_builder()
 
-        self.run()
+        self.s_threads.start()
 
     def show_ranking(self):
 
@@ -285,10 +285,7 @@ class Main(Tk):
 
         except Exception:
 
-            from tkinter.messagebox import showerror
-            from subprocess import run
-
-            showerror(
+            showwarning(
                 "Error",
                 f"An error occurred saving data, data will be copied it to the clipbord.",
             )
@@ -303,7 +300,7 @@ class Main(Tk):
         Generate the clock label
         """
         self.timer_label.configure(
-            text=f"Time left: {self._timer_seconds // 3600: 02}: {(self._timer_seconds % 3600) // 60: 02}: {self._timer_seconds % 60: 02}"
+            text=f"Time left: {self._timer_seconds // 3600:02d}: {(self._timer_seconds % 3600) // 60:02d}: {self._timer_seconds % 60:02d}"
         )
 
     def stable_element_builder(self):
@@ -366,11 +363,9 @@ class Main(Tk):
                 self.entry_quetion_x_team[row][question].config(
                     readonlybackground='red' if points < 0 else 'green' if points > 0 else 'white', fg='blue' if self._list_point[team][question][2] == 2 else 'black')
 
-    # methods to submit answer
+    # methods to submit answer or jolly
 
-    def submit_answer(
-        self, selected_team: str, entered_question: int, entered_answer: int
-    ):
+    def submit_answer(self, selected_team: str, entered_question: int, entered_answer: int):
         """
         The metod to submit an answer
         """
@@ -435,6 +430,7 @@ class Main(Tk):
             self._recorder.record_jolly(selected_team, entered_question)
 
     # methods to calculate points
+
     def point_answer(self, question: int) -> int:
         """
         Return the value of answer
@@ -494,21 +490,25 @@ class Arbiter_GUI(Toplevel):
 
         Button(self, text="Submit", command=self.submit_answer).pack(pady=15)
 
-        self.bind('<Return>', self.submit_answer)
+        self.thread_submit_answer = Thread(
+            target=lambda: self.submit_answer_main(
+                self.selected_team.get(),
+                int(self.question_entry.get()),
+                int(self.answer_entry.get()),
+            )
+        )
 
-    def submit_answer(self, event: str = None):
+        self.bind('<Return>', lambda key: self.submit_answer())
+
+        self.protocol('WM_DELETE_WINDOW', lambda: None)
+
+    def submit_answer(self):
         """
         The method associated to the button
         """
         try:
 
-            Thread(
-                target=self.submit_answer_main(
-                    self.selected_team.get(),
-                    int(self.question_entry.get()),
-                    int(self.answer_entry.get()),
-                )
-            ).start
+            self.thread_submit_answer.start()
 
         except ValueError:
             pass
@@ -550,18 +550,22 @@ class Jolly_GUI(Toplevel):
 
         Button(self, text="Submit", command=self.submit_jolly).pack(pady=15)
 
-        self.bind('<Return>', self.submit_jolly)
+        self.thread_submit_jolly = Thread(
+            target=lambda: self.submit_jolly_main(
+                self.selected_team_jolly.get(), int(self.question_entry_jolly.get())
+            )
+        )
 
-    def submit_jolly(self, event: str = None):
+        self.bind('<Return>', lambda key: self.submit_jolly())
+
+        self.protocol('WM_DELETE_WINDOW', lambda: None)
+
+    def submit_jolly(self):
         """
         The method associated to the button
         """
         try:
-            Thread(
-                target=self.submit_jolly_main(
-                    self.selected_team_jolly.get(), int(self.question_entry_jolly.get())
-                )
-            ).start
+            self.thread_submit_jolly.start()
 
         except ValueError:
             pass
