@@ -6,6 +6,7 @@ from tkinter import IntVar, Tk, Toplevel, Canvas, StringVar, Entry, Label
 from tkinter.ttk import Frame, Button, Scrollbar, Combobox
 from tkinter.filedialog import askopenfilename, asksaveasfile
 from tkinter.messagebox import askokcancel, showerror, showwarning
+from _tkinter import TclError
 
 # os
 from threading import Thread
@@ -13,6 +14,7 @@ from subprocess import run
 from sched import scheduler
 from time import time as t_time, sleep
 from sys import exit as _exit
+
 
 # .ini reading
 from configparser import ConfigParser, NoSectionError
@@ -32,8 +34,9 @@ class Recorder:
         self._jolly = {name: None for name in names_teams}
         self._answer = {name: []
                         for name in names_teams}
-        self._values_questions = {question: [
-            (total_time, base_value_question)] for question in number_of_question_tuple}
+        self._values_questions = [None] + [[
+            (total_time, base_value_question)] for _ in number_of_question_tuple]
+
         self._total_teams = {name: [(total_time, base_points)]
                              for name in names_teams}
 
@@ -52,7 +55,7 @@ class Recorder:
             self._total_teams[name_team].append((time, value))
 
     def __str__(self):
-        return str((self._jolly, self._answer, self._values_questions, self._total_teams))
+        return str((self._jolly, self._answer, self._values_questions, self._total_teams, self._values_questions[1][0][0]))
 
 
 class Main(Tk):
@@ -96,8 +99,8 @@ class Main(Tk):
                 config.get('Teams', 'teams').split(', '))
 
             # genaration timer
-            self._TOTAL_TIME = self._timer_seconds = config.getint(
-                'Timer', 'time')*60
+            self._TOTAL_TIME = self._timer_seconds = 10  # config.getint(
+            #  'Timer', 'time')*60
 
             self._TIME_FOR_JOLLY = config.getint('Timer', 'time_for_jolly')*60
 
@@ -157,6 +160,11 @@ class Main(Tk):
             self.title("Competitors")
             self.geometry('1600x630')
             self.resizable(True, False)
+            try:
+                self.iconbitmap(
+                    abspath(join(dirname(__file__), 'MathScore.ico')))
+            except (FileNotFoundError, IOError, PermissionError):
+                pass
 
             # widget costruction
             self.timer_label = Label(self, font=('Helvetica', 18, 'bold'))
@@ -191,14 +199,13 @@ class Main(Tk):
 
             self.s = scheduler(t_time, sleep)
 
-            self.s.enter(self._TOTAL_TIME - self._TIME_FOR_JOLLY,
-                         3, self.update_entry)
-
             self.s.enter(self._TOTAL_TIME - 30, 3, lambda: [
                 widget.grid_forget() for widget in self.frame_point.winfo_children()])
 
-            self.s.enter(self._TOTAL_TIME, 3, lambda: [self.main_button.configure(
-                state='normal', text="Show ranking", command=self.jolly_GUI.destroy), self.timer_label.destroy()])
+            self.s.enter(self._TOTAL_TIME, 3, lambda: self.main_button.configure(
+                state='normal', text="Show ranking", command=self.show_ranking))
+
+            self.s.enter(self._TOTAL_TIME, 4, self.timer_label.destroy)
 
             for time in range(1, self._TOTAL_TIME):
                 self.s.enter(time, 2, self.update_main)
@@ -213,9 +220,6 @@ class Main(Tk):
                     for question in self._NUMBER_OF_QUESTIONS_RANGE_1
                     if self._solutions[question][1] < self._DERIVE
                 ])
-
-            self.s_threads = Thread(
-                target=lambda: self.s.run(blocking=True), daemon=True)
 
             self.entry_quetion_x_team = [
                 [None] + [Entry(self.frame_point, width=6, bd=5, state='readonly', readonlybackground='white')
@@ -232,7 +236,7 @@ class Main(Tk):
                 [StringVar(), IntVar()] for _ in self.NAMES_TEAMS]
 
             self.protocol('WM_DELETE_WINDOW', lambda: _exit(2 if self._timer_seconds !=
-                                                            0 else 0) if askokcancel("Closing confirm", "All data will be losted.") else None)
+                                                            0 else 0) if askokcancel("Closing confirm", "All data can be losted.") else None)
 
     # method about runtime
 
@@ -258,11 +262,15 @@ class Main(Tk):
         self.arbiter_GUI = Arbiter_GUI(self)
         self.jolly_GUI = Jolly_GUI(self)
 
+        self.s.enter(self._TOTAL_TIME - self._TIME_FOR_JOLLY,
+                     3,  self.jolly_GUI.destroy)
+
         self.main_button.configure(state='disabled')
 
         self.stable_element_builder()
 
-        self.s_threads.start()
+        Thread(
+            target=lambda: self.s.run(blocking=True), daemon=True).start()
 
     def show_ranking(self):
 
@@ -462,35 +470,38 @@ class Arbiter_GUI(Toplevel):
         self.title("Arbiter")
         self.geometry("500x210")
         self.resizable(False, False)
+        try:
+            self.iconbitmap(
+                abspath(join(dirname(__file__), 'MathScore.ico')))
+        except (FileNotFoundError, IOError, PermissionError):
+            pass
 
         # craation entry for data
         Label(self, text="Team:").pack()
+
         self.selected_team = StringVar(value="")
-        self.squadre_entry = Combobox(
+        Combobox(
             self,
             textvariable=self.selected_team,
             values=main.NAMES_TEAMS,
             state='readonly',
-        )
-        self.squadre_entry.pack()
+        ).pack()
 
         Label(self, text="Question number:").pack()
-        self.question_entry = Entry(self)
+        self.question_var = IntVar()
+        self.question_entry = Entry(self, textvariable=self.question_var)
         self.question_entry.pack()
 
         Label(self, text="Insert an answer:").pack()
-        self.answer_entry = Entry(self)
+        self.answer_var = IntVar()
+        self.answer_entry = Entry(self, textvariable=self.answer_var)
         self.answer_entry.pack()
 
-        Button(self, text="Submit", command=self.submit_answer).pack(pady=15)
+        self.selected_team.set("")
+        self.question_entry.delete(0, "end")
+        self.answer_entry.delete(0, "end")
 
-        self.thread_submit_answer = Thread(
-            target=lambda: self.submit_answer_main(
-                self.selected_team.get(),
-                int(self.question_entry.get()),
-                int(self.answer_entry.get()),
-            )
-        )
+        Button(self, text="Submit", command=self.submit_answer).pack(pady=15)
 
         self.bind('<Return>', lambda key: self.submit_answer())
 
@@ -502,9 +513,15 @@ class Arbiter_GUI(Toplevel):
         """
         try:
 
-            self.thread_submit_answer.start()
+            Thread(
+                target=self.submit_answer_main(
+                    self.selected_team.get(),
+                    self.question_var.get(),
+                    self.answer_var.get(),
+                )
+            ).start()
 
-        except ValueError:
+        except TclError:
             pass
 
         finally:
@@ -524,30 +541,34 @@ class Jolly_GUI(Toplevel):
         self.title("Jolly")
         self.geometry("500x160")
         self.resizable(False, False)
+        try:
+            self.iconbitmap(
+                abspath(join(dirname(__file__), 'MathScore.ico')))
+        except (FileNotFoundError, IOError, PermissionError):
+            pass
 
         # creatition entry for team
         Label(self, text="Team:").pack()
+
         self.selected_team_jolly = StringVar(value="")
-        self.squadre_entry_jolly = Combobox(
+
+        Combobox(
             self,
             textvariable=self.selected_team_jolly,
             values=main.NAMES_TEAMS,
             state='readonly',
-        )
-        self.squadre_entry_jolly.pack()
+        ).pack()
 
         # creatition entry for question
         Label(self, text="Question number:").pack()
-        self.question_entry_jolly = Entry(self)
+        self.question_var = IntVar()
+        self.question_entry_jolly = Entry(self, textvariable=self.question_var)
         self.question_entry_jolly.pack()
 
-        Button(self, text="Submit", command=self.submit_jolly).pack(pady=15)
+        self.selected_team_jolly.set("")
+        self.question_entry_jolly.delete(0, "end")
 
-        self.thread_submit_jolly = Thread(
-            target=lambda: self.submit_jolly_main(
-                self.selected_team_jolly.get(), int(self.question_entry_jolly.get())
-            )
-        )
+        Button(self, text="Submit", command=self.submit_jolly).pack(pady=15)
 
         self.bind('<Return>', lambda key: self.submit_jolly())
 
@@ -558,9 +579,12 @@ class Jolly_GUI(Toplevel):
         The method associated to the button
         """
         try:
-            self.thread_submit_jolly.start()
+            Thread(
+                target=self.submit_jolly_main(
+                    self.selected_team_jolly.get(), self.question_var.get())
+            ).start()
 
-        except ValueError:
+        except TclError:
             pass
 
         finally:
