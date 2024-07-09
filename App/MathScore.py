@@ -32,6 +32,9 @@ from os.path import join, dirname, abspath, exists
 
 
 def set_icon(window: Tk):
+    """
+    Set the icon of a windows
+    """
     try:
         window.iconbitmap(abspath(join(dirname(__file__), 'MathScore.ico')))
     except (FileNotFoundError, IOError, PermissionError):
@@ -39,6 +42,15 @@ def set_icon(window: Tk):
 
 
 class Recorder:
+
+    """
+    This class is used for save:
+    - values of question in the time
+    - tootal points of a team in the time
+    - answer given by a team
+    - jolly chosen for a team     
+    """
+
     def __init__(self, names_teams: list, number_of_question_tuple: tuple, total_time: int, base_points: int, base_value_question: int):
         self._jolly = {name: None for name in names_teams}
         self._answer = {name: []
@@ -75,10 +87,14 @@ class Main(Tk):
 
     def __init__(self):
 
+        # serch the ini file in the same directory
+        # abspath is use to prevent problem the exe convrsion
+
         ini_file_path = abspath(join(dirname(__file__), 'Config.ini'))
 
         if not exists(ini_file_path):
 
+            # if ther isn't the ini file in the same path ask to the user to select the file
             ini_file_path = askopenfilename(
                 filetypes=[("Configuration files", "*.ini")])
 
@@ -89,6 +105,7 @@ class Main(Tk):
                 sys_exit(10)
 
         try:
+            # ceck if is possible read the file
             open(ini_file_path, "r")
 
         except (FileNotFoundError, IOError, PermissionError):
@@ -102,17 +119,15 @@ class Main(Tk):
 
         try:
 
-            # teams' names
             self.NAMES_TEAMS = tuple(
                 config.get('Teams', 'teams').split(', '))
 
-            # genaration timer
             self._TOTAL_TIME = self._timer_seconds = config.getint(
                 'Timer', 'time')*60
 
             self._TIME_FOR_JOLLY = config.getint('Timer', 'time_for_jolly')*60
 
-            # setting DERIVE
+            # the DERIVE is the minum number of question to block the grow of the value of a question
             self._DERIVE = config.getint('Points', 'derive')
 
             self._BONUS_ANSWER = literal_eval(
@@ -147,8 +162,10 @@ class Main(Tk):
             # list point, bonus, n_fulled
 
             self._list_point = {
-                name: [self._NUMBER_OF_QUESTIONS * 10] + [[0, 0, 1, 0]
-                                                          for _ in self._NUMBER_OF_QUESTIONS_RANGE_1] for name in self.NAMES_TEAMS}
+                name: [self._NUMBER_OF_QUESTIONS * 10, [0, 0, 2, 0]] + [[0, 0, 1, 0]
+                                                                        for _ in range(
+                    1, self._NUMBER_OF_QUESTIONS)
+                ] for name in self.NAMES_TEAMS}
 
             self._fulled = 0
 
@@ -424,6 +441,8 @@ class Main(Tk):
         the metod to submit a jolly
         """
         # check timer staus and if other jolly are already been given
+        self._list_point[selected_team][1][2] = 1
+
         if self._timer_seconds > (self._TOTAL_TIME - 600) and (
             sum(
                 [
