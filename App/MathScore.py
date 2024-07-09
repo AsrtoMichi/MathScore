@@ -99,8 +99,8 @@ class Main(Tk):
                 config.get('Teams', 'teams').split(', '))
 
             # genaration timer
-            self._TOTAL_TIME = self._timer_seconds = 10  # config.getint(
-            #  'Timer', 'time')*60
+            self._TOTAL_TIME = self._timer_seconds = config.getint(
+                'Timer', 'time')*60
 
             self._TIME_FOR_JOLLY = config.getint('Timer', 'time_for_jolly')*60
 
