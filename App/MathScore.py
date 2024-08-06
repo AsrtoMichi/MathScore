@@ -717,7 +717,4 @@ class ArbiterGUI(Toplevel):
 
 if __name__ == "__main__":
 
-    # from cProfile import run
-    # run('Main()')
-
     Main().mainloop()
