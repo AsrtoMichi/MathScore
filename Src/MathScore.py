@@ -21,26 +21,20 @@ Alessandro Chiozza, Federico Micelli and Giorgio Sorgente, for technical help
 
 # GUI
 from tkinter import Tk, Toplevel, Canvas, Entry, Label, Variable
-from tkinter.ttk import Frame, Button, Scrollbar, Combobox
+from tkinter.ttk import Button, Scrollbar, Combobox
 from tkinter.filedialog import askopenfilename, asksaveasfile
 from tkinter.messagebox import askokcancel, showerror, showwarning
+from _tkinter import TclError
 
 # OS
 from sys import exit as sys_exit
-# sys_exit is used to prevent problem in the exe version
+# sys_exit is used to prevent problem exe version
 
 # .ini reading
 from configparser import ConfigParser, ParsingError
 from ast import literal_eval
+from os.path import join, dirname, abspath
 from os import access, stat
-
-# decoration
-from typing import Iterable
-
-
-def join(file_name):
-    sep = '/'if '/' in __file__ else '\\'
-    return __file__[:__file__.rfind(sep) + 1] + sep + file_name
 
 
 class Recorder:
@@ -51,10 +45,10 @@ class Recorder:
     - jolly chosen for a team
     """
 
-    def __init__(self,  names_teams: Iterable[str]):
+    def __init__(self, names):
 
-        self._jolly = {name: None for name in names_teams}
-        self._answer = {name: [] for name in names_teams}
+        self._jolly = {name: None for name in names}
+        self._answer = {name: [] for name in names}
 
     def record_jolly(self, name_team: str, time: int, question: int):
         """
@@ -68,15 +62,12 @@ class Recorder:
         """
         self._answer[name_team].append((time, question, answer))
 
-    def __str__(self):
-
-        return str(self._jolly, self._answer)
-
 
 class StringVar(Variable):
     """Value holder for strings variables."""
+    _default = ""
 
-    def __init__(self, master):
+    def __init__(self, master=None, value=None):
         """Construct a string variable.
 
         MASTER can be given as master widget.
@@ -86,21 +77,17 @@ class StringVar(Variable):
         If NAME matches an existing variable and VALUE is omitted
         then the existing value is retained.
         """
-        Variable.__init__(self, master)
+        Variable.__init__(self, master, value)
 
     def set(self, value=""):
         """Set the variable to VALUE."""
         self._tk.globalsetvar(self._name, value)
 
-    def get(self) -> str:
-        """Return value of variable as string."""
-        return self._tk.globalgetvar(self._name)
 
-
-class IntVar(Variable):
+class IntVar(StringVar):
     """Value holder for integer variables."""
 
-    def __init__(self, master):
+    def __init__(self, master=None, value=None):
         """Construct an integer variable.
 
         MASTER can be given as master widget.
@@ -110,21 +97,18 @@ class IntVar(Variable):
         If NAME matches an existing variable and VALUE is omitted
         then the existing value is retained.
         """
-        Variable.__init__(self, master)
-
-    def set(self, value=""):
-        """Set the variable to VALUE."""
-        self._tk.globalsetvar(self._name, value)
+        StringVar.__init__(self, master, value)
 
     def get(self) -> int:
         """Return the value of the variable as an integer."""
+        value = self._tk.globalgetvar(self._name)
         try:
-            return int(self._tk.globalgetvar(self._name))
+            return int(value)
         except ValueError:
-            return
+            return 0
 
 
-class Main(Tk):
+class Main(Tk, Recorder):
 
     """
     Is the main window: here are showed poits
@@ -134,17 +118,18 @@ class Main(Tk):
         """
         Step of init method:
 
-        0. creation of the main Window:
+        0. Creation of the main Window:
+            modification of WM_DELETE_WINDOW to prevent accidental closures:
+                Error code 3 if the windows are closed during the competition
 
         1. Individuate the .ini file:
             1. in the same directory
             2. ask to the user
-            Error exit code: 10 "No .ini file has been give." 
+                Error exit code: 20 "No .ini file has been give."
+            3.check if the config.ini exists/possibly open it:
+                Error exit code: 21 "Impossible to read the config.ini file."
 
-        2. check if the config.ini exists/possibly open it:
-            Error exit code: 11 "Impossible to read the config.ini file."
-
-        3. reading of file using ConfigParser:
+        2. reading of file using ConfigParser:
             - extracted data are (variable, section in .ini):
             - self.NAMES_TEAMS ['Generic']['teams']
             - (name competition) config['Generic']['name_competion']
@@ -156,82 +141,90 @@ class Main(Tk):
             - value ['Points']['vantage']
             - solutions ['Solutions']['solutions']
 
-            Error exit code: KeyError, ValueError, ParsingError ValueError 12 
+            Error exit code: KeyError, ValueError, ParsingError ValueError 22
                 "An error occurred reading the config.ini file"
 
-        Error exit code: Configuration not completed 1 
-            "Impossible to find or read the config.ini file."
 
-        4. - creation of ArbiterGUI
+        3. - creation of ArbiterGUI
            - the creation of a timer label
            - the creation of the main button
            - the creation of a scrollable area for the point's grid
-
-        5. - creation of the list of IntVar e StringVar ad Entry to show points
+           - creation of the list of IntVar e StringVar ad Entry to show points
            - connctio var to entry
            - griding entry
-
-        6. modification of WM_DELETE_WINDOW to prevent accidental closures:
-            Error code 2 if the windows are closed during the competition
         """
 
-        # creation Main window and castomization
-        super().__init__()
-        self.tk.call('wm', 'resizable', self._w, False, False)
+        # ---------------- 0. Main general config ---------------- #
+
+        Tk.__init__(self)
+        self.resizable(False, False)
+        self.protocol('WM_DELETE_WINDOW', lambda: self.exit_confirm(3))
 
         try:
-            self.tk.call('wm', 'iconbitmap', self._w, '-default',
-                         join('MathScore.ico'))
-        except (FileNotFoundError, OSError, PermissionError):
+            self.iconbitmap(default=abspath(
+                join(dirname(__file__), 'MathScore.ico')))
+        except TclError:
             pass
 
-        ini_file_path = join('Config.ini')
+        Label(self, text='Copyright(C) 2024 AstroMichi').pack(
+            side='bottom', anchor="e", padx=8, pady=8)
+
+        ini_file_path = abspath(join(dirname(__file__), 'Config.ini'))
         # serch the ini file in the same directory
+
+        # ---------------- 1. Individation config.ini ---------------- #
 
         try:
             stat(ini_file_path)
+
         except OSError:
+
             # if ther isn't the ini file in the same path ask to the user to select the file
             ini_file_path = askopenfilename(
                 parent=self,
-                filetypes=[("Configuration files", "*.ini")])
+                title='Select the .ini file',
+                filetypes=[('Initiation File Format', '*.ini')])
 
-            if ini_file_path == "":
+            if not ini_file_path:
 
-                showerror(
-                    "Error", "No .ini file has been give.", master=self)
-                sys_exit(10)
+                self.exit_error('No .ini file has been gived.', 20)
+        else:
 
-        if not access(ini_file_path, 4):
-            showerror(
-                "Error", "Impossible to read the config.ini file.", master=self)
-            sys_exit(11)
+            if not access(ini_file_path, 4):
+                self.exit_error(
+                    'Impossible to read the config.ini file.', 21,
+                    PermissionError(13, 'Not enough permissions.', ini_file_path, None))
 
+        # ------------------- 2. Parsing config.ini ------------------- #
         try:
             config = ConfigParser()
             config.read(ini_file_path)
 
             self.NAMES_TEAMS = tuple(config['Generic']['teams'].split(', '))
 
-            self._timer_seconds, self._TIME_FOR_JOLLY = int(
-                config['Timer']['time'])*60, int(config['Timer']['time_for_jolly'])*60
+            self._timer_seconds = int(
+                config['Timer']['time'])*60
+
+            self._TIME_FOR_JOLLY = int(config['Timer']['time_for_jolly'])*60
 
             # DERIVE is the minum number of question to block the grow of the value of a question
             self._DERIVE = int(config['Points']['derive'])
 
             self._BONUS_ANSWER = literal_eval(
                 config['Points']['bonus_answer'])
-            self._N_BONUS_ANSWER = len(self._BONUS_ANSWER)
+            self._N_BONUS_ANSWER = len(self._BONUS_ANSWER) - 1
 
             for bonus in self._BONUS_ANSWER:
-                assert isinstance(bonus, int)
+                if not isinstance(bonus, int):
+                    raise ValueError
 
             self._BONUS_FULLED = literal_eval(
                 config['Points']['bonus_fulled'])
-            self._N_BONUS_FULLED = len(self._BONUS_FULLED)
+            self._N_BONUS_FULLED = len(self._BONUS_FULLED) - 1
 
             for bonus in self._BONUS_FULLED:
-                assert isinstance(bonus, int)
+                if not isinstance(bonus, int):
+                    raise ValueError
 
             # 0: solution
             # 1: correct
@@ -243,7 +236,8 @@ class Main(Tk):
             solutions = literal_eval(config['Solutions']['solutions'])
 
             for solution in solutions:
-                assert isinstance(solution, int)
+                if not isinstance(solution, int):
+                    raise ValueError
 
             self._solutions = [0] + [
                 [solution,  0,  0, value]
@@ -253,7 +247,7 @@ class Main(Tk):
             self._NUMBER_OF_QUESTIONS = len(solutions)
 
             self._NUMBER_OF_QUESTIONS_RANGE_1 = range(
-                1, self._NUMBER_OF_QUESTIONS+1)
+                1, self._NUMBER_OF_QUESTIONS + 1)
 
             # 0: errors
             # 1: status
@@ -263,153 +257,152 @@ class Main(Tk):
             self._list_point = {
                 name: [self._NUMBER_OF_QUESTIONS * 10] + [[0]*4
                                                           for _ in self._NUMBER_OF_QUESTIONS_RANGE_1
-                                                          ] for name in self.NAMES_TEAMS}
+                                                          ]for name in self.NAMES_TEAMS}
 
-            self._recorder = Recorder(
-                self.NAMES_TEAMS)
+            Recorder.__init__(self, self.NAMES_TEAMS)
 
-        except (KeyError, ValueError, ParsingError, TypeError, AssertionError):
-            showerror(
-                "Error", "An error occurred reading the config.ini file", master=self)
-            sys_exit(12)
+        except (KeyError, ValueError, ParsingError, TypeError) as e:
+            self.exit_error(
+                'An error occurred parsing the config.ini file', 22, e)
 
-        except:
-            showerror(
-                "Error", "Impossible to find or read the config.ini file.", master=self)
-            sys_exit(1)
-
+        # ---------------------- 3. Buliding Main ---------------------- #
         else:
-            self.tk.call('wm', 'title', self._w,
-                         config['Generic']['name_competion'])
+
+            self.title(config['Generic']['name_competion'])
 
             self.arbiterGUI = ArbiterGUI(self)
 
-            # widget costruction
+            # ------------------- Timer Label ------------------- #
             self.timer_label = Label(self, font=('Helvetica', 18, 'bold'),
-                                     text=f"Time left: {self._timer_seconds // 3600:02d}:{(self._timer_seconds % 3600) // 60:02d}:00")
+                                     text=f'Time left: {self._timer_seconds // 3600:02d}:{(self._timer_seconds % 3600) // 60:02d}:00')
             self.timer_label.pack()
+
+            # ------------------- Main Button ------------------- #
 
             self.main_button = Button(
                 self, text="Start", command=self.start_competition)
             self.main_button.pack()
 
-            # cration of scrollabe area
-            self.points_label = Frame(self, width=1625, height=600)
+            # ----------------- Scrollable Area ----------------- #
 
-            canvas = Canvas(
-                self.points_label,
-                width=1625,
-                height=600,
-                scrollregion=(0, 0, 1625, len(self.NAMES_TEAMS) * 26),
-            )
-            canvas.pack(side='left', expand=True, fill='both')
+            self.canvas = Canvas(self)
+            self.scrollbar = Scrollbar(
+                self, orient='vertical', command=self.canvas.yview)
+            self.canvas.configure(yscrollcommand=self.scrollbar.set)
 
-            scrollbar = Scrollbar(self.points_label, command=canvas.yview)
-            scrollbar.pack(side='right', fill='y')
+            colum_range = range(2, self._NUMBER_OF_QUESTIONS+2)
+            # ----------------- Head columns ----------------- #
 
-            canvas.configure(yscrollcommand=scrollbar.set)
+            self.var_question = [None]
 
-            frame_point = Frame(
-                canvas, width=1625, height=len(self.NAMES_TEAMS) * 26)
-            canvas.create_window((0, 0), window=frame_point, anchor='nw')
+            for col in colum_range:
 
-            self.var_head_col = [None] + [IntVar(self)
-                                          for _ in self._NUMBER_OF_QUESTIONS_RANGE_1]
+                Label(self.canvas, width=6, text=col).grid(row=0, column=col)
 
-            for column in self._NUMBER_OF_QUESTIONS_RANGE_1:
+                question_var = IntVar(self)
 
-                Label(frame_point, text=column, width=6).grid(
-                    column=column+1, row=0
-                )
+                Entry(self.canvas, width=6, bd=5,
+                      state='readonly', readonlybackground='white',
+                      textvariable=question_var
+                      ).grid(row=1, column=col)
 
-                Entry(frame_point, width=6, bd=5,
-                      textvariable=self.var_head_col[column], state='readonly',
-                      readonlybackground='white').grid(column=column+1, row=1)
+                self.var_question.append(question_var)
 
-            self.var_head_row = [
-                [StringVar(self), IntVar(self)] for _ in self.NAMES_TEAMS]
+            # ---------------------- Rows ---------------------- #
 
-            self.var_question_x_team = [
-                [None] + [IntVar(self)
-                          for _ in self._NUMBER_OF_QUESTIONS_RANGE_1]
-                for _ in self.NAMES_TEAMS]
+            self.var_start_row = []
+            self.var_question_x_team = []
+            self.entry_question_x_team = []
 
-            self.entry_question_x_team = [
-                [None] + [Entry(frame_point, width=6, bd=5,
-                                state='readonly', readonlybackground='white',
-                                textvariable=intvar)
-                          for intvar in row[1:]]
-                for row in self.var_question_x_team]
+            for row in range(2, len(self.NAMES_TEAMS)+2):
 
-            for row in range(len(self.NAMES_TEAMS)):
+                team_var, total_points_team_var = StringVar(self), IntVar(self)
 
-                Label(frame_point, anchor='e', textvariable=self.var_head_row[row][0]).grid(
-                    column=0, row=row+2)
+                Label(self.canvas, anchor='e',
+                      textvariable=team_var
+                      ).grid(row=row, column=0)
 
-                Entry(frame_point, width=6, bd=5,
-                      textvariable=self.var_head_row[row][1],
-                      state='readonly', readonlybackground='white').grid(column=1, row=row+2)
+                Entry(self.canvas, width=6, bd=5,
+                      state='readonly', readonlybackground='white',
+                      textvariable=total_points_team_var
+                      ).grid(row=row, column=1)
 
-                for column in self._NUMBER_OF_QUESTIONS_RANGE_1:
+                self.var_start_row.append((team_var, total_points_team_var))
 
-                    self.entry_question_x_team[row][column].grid(
-                        column=column+1, row=row+2)
+                var_list = [None]
+                entry_list = [None]
+
+                for col in colum_range:
+
+                    points_team_x_question = IntVar(self)
+
+                    entry = Entry(self.canvas, width=6, bd=5,
+                                  state='readonly', readonlybackground='white',
+                                  textvariable=points_team_x_question
+                                  )
+
+                    entry.grid(row=row, column=col)
+
+                    var_list.append(points_team_x_question)
+                    entry_list.append(entry)
+
+                self.var_question_x_team.append(var_list)
+                self.entry_question_x_team.append(entry_list)
 
             self.update_entry()
 
-            self.wm_protocol('WM_DELETE_WINDOW',
-                             lambda: sys_exit(2)
-                             if askokcancel("Closing confirm", "All data can be losted.", master=self)
-                             else None)
-
-    # method about runtime
-
-    def update_values_questions(self):
-        """
-        Update the values of questions of 1 if the number of answers is less than the derive
-        """
-        for question in self._solutions[1:]:
-            question[3] += 1 if question[1] < self._DERIVE else None
-
-        self.update_entry()
-
-    # methods about the progress ot time
+    # -------------------- Runtime's -------------------- #
 
     def start_competition(self):
         """
         Programming of the scheduler:
             - TOTAL TIME - 30: elimination point's grid
             - TOTAL TIME: elimination of timer label, reconfiguration of main button
-            - 1 to TOTAL TIME: update the timer
+            - 1 to TOTAL TIME: update the value of the question
+            - 1 to TOTAL TIME - 30: update point's grid
             - Each minute until self._TOTAL_TIME - 1200: update questions' value
-            - TIME FOR JOLLY: remove the possibility of giving jolly, assignation jolly at number 1 if possible
+            - TOTAL TIME - 30: remove the possibility of giving jolly,
+              assignation jolly at number 1 if possible
 
         Allow to give answers and jolly
-        Show points
         """
+
         TOTAL_TIME = self._timer_seconds
 
-        self.points_label.pack()
+        # -------------------- Start -------------------- #
 
-        for time in range(1000, (TOTAL_TIME*1000)+1, 1000):
-            self.after(time, self.update_timer)
-
-        for time in range(60000, (TOTAL_TIME - 1200)*1000, 60000):
-            self.after(time, self.update_values_questions)
+        self.canvas_scrollbar_pack()
 
         self.main_button.configure(state='disabled')
         self.arbiterGUI.jolly_button.configure(state='normal')
         self.arbiterGUI.answer_button.configure(state='normal')
+        self.bind('< Return >', lambda key: self.arbiterGUI.submit_answer)
 
-        self.after(self._TIME_FOR_JOLLY * 1000,
+        # -------------- Repetitive functions -------------- #
+
+        for time in range(1000, (TOTAL_TIME*1000)+1, 1000):
+            self.after(time, self.update_timer)
+
+        for time in range(60000, ((TOTAL_TIME - 1200)*1000)+1, 60000):
+            self.after(time, self.update_values_questions)
+
+        # ------------------- Stop jolly ------------------- #
+
+        self.after(self._TIME_FOR_JOLLY*1000,
                    self.arbiterGUI.jolly_button.configure, {'state': 'disabled'})
-        self.after(self._TIME_FOR_JOLLY * 1000,
+
+        self.after(self._TIME_FOR_JOLLY*1000,
                    lambda: [self.submit_jolly(team, 1) for team in self.NAMES_TEAMS])
 
-        self.after((TOTAL_TIME - 30)*1000, self.points_label.pack_forget)
+        # ----------------- Hinding points ----------------- #
+
+        self.after((TOTAL_TIME - 30)*1000, self.canvas_scrollbar_pack_forget)
+
+        # ------------------- Conclusion ------------------- #
 
         self.after(TOTAL_TIME*1000, self.main_button.configure,
-                   {'state': 'normal', 'text': "Show ranking", 'command': self.show_ranking})
+                   {'state': 'normal', 'text': 'Show ranking', 'command': self.show_ranking})
+
         self.after(TOTAL_TIME*1000, self.timer_label.destroy)
 
     def show_ranking(self):
@@ -418,53 +411,64 @@ class Main(Tk):
         """
 
         self.main_button.configure(
-            text="Save data", command=self.save_data)
-        self.points_label.pack()
+            text='Save data', command=self.save_data)
         self.arbiterGUI.destroy()
-        self.wm_protocol('WM_DELETE_WINDOW',
-                         lambda: sys_exit(0)
-                         if askokcancel("Closing confirm", "All data can be losted.", master=self)
-                         else None)
+        self.canvas_scrollbar_pack()
 
     def save_data(self):
         """
         Try to save data if is not possible copy them in clipboard
         """
 
+        data = str(self._jolly, self._answer)
+
         try:
+            asksaveasfile().write(data)
+        except SyntaxError:
+            pass
+        except OSError as e:
+            self.clipboard_append(data)
+            showwarning('Saving failled',
+                        'Data copied in to the clipboard',
+                        deatil=e, parent=self)
 
-            asksaveasfile(master=self,
-                          title="Save data",
-                          filetypes=[("Text files", "*.txt")]
-                          ).write(str(self._recorder))
+    # --------------------- Grafic's --------------------- #
 
-        except AttributeError:
-            showwarning(
-                "Error",
-                "Data not saved",
-                master=self
-            )
+    def canvas_scrollbar_pack(self):
+        """
+        Pack canvas for entryes and scrollbarr
+        """
 
-        except (OSError, PermissionError):
+        self.tk.call('pack', 'configure', '.!scrollbar', '.!canvas',
+                     '-expand', 'yes',
+                     '-fill', 'both',
+                     '-side', 'right')
 
-            showwarning(
-                "Error",
-                "An error occurred saving data, data will be copied it to the clipbord.",
-                master=self
-            )
+    def canvas_scrollbar_pack_forget(self):
+        """
+        Pack forget canvas for entryes and scrollbarr
+        """
+        self.tk.call('pack', 'forget', '.!scrollbar', '.!canvas')
 
-            self.clipboard_append(str(self._recorder))
-
-    # metods about wiget
+    # --------------.------ Upadte's --------------------- #
 
     def update_timer(self):
         """
-        Generate the clock label
+        Update the clock label
         """
+
         self._timer_seconds -= 1
         self.timer_label.configure(
-            text=f"Time left: {self._timer_seconds // 3600:02d}:{(self._timer_seconds % 3600) // 60:02d}:{self._timer_seconds % 60:02d}"
+            text=f"Time left: {self._timer_seconds // 3600:02d}: {(self._timer_seconds % 3600) // 60:02d}: {self._timer_seconds % 60:02d}"
         )
+
+    def update_values_questions(self):
+        """
+        Update the values of questions of 1 if the number of answers is less than the derive
+        """
+        for question in self._solutions[1:]:
+            if question[1] < self._DERIVE:
+                question[3] += 1
 
     def update_entry(self):
         """
@@ -474,7 +478,7 @@ class Main(Tk):
         # Create value labels for each question
         for question in self._NUMBER_OF_QUESTIONS_RANGE_1:
 
-            self.var_head_col[question].set(
+            self.var_question[question].set(
                 self.value_question(question))
 
         # Populate team points and color-code entries
@@ -482,41 +486,60 @@ class Main(Tk):
                                           key=self.total_points_team,
                                           reverse=True)):
 
-            self.var_head_row[row][0].set(team)
+            self.var_start_row[row][0].set(team)
 
-            self.var_head_row[row][1].set(self.total_points_team(team))
+            self.var_start_row[row][1].set(self.total_points_team(team))
 
             for question in self._NUMBER_OF_QUESTIONS_RANGE_1:
 
                 points = self.value_question_x_squad(team, question)
 
-                self.var_question_x_team[row][question].set(
-                    self.value_question_x_squad(team, question))
+                self.var_question_x_team[row][question].set(points)
 
-                self.entry_question_x_team[row][question].configure(
+                self.entry_question_x_team[row][question].config(
                     readonlybackground='red' if points < 0 else 'green' if points > 0 else 'white',
                     fg='blue' if self._list_point[team][question][2] else 'black',
-                    font=('Helvetica', 9, 'bold')
-                    if self._list_point[team][question][2] else (
-                        'Helvetica', 9, 'normal'))
+                    font=f"Helvetica 9 {'bold' if self._list_point[team][question][2] else 'normal'}")
 
-    # methods to submit answer or jolly
+    # --------------------- Dialog's --------------------- #
 
-    def submit_answer(self, selected_team: str, entered_question: int, entered_answer: int):
+    def exit_error(self, message: str, error_code: int, details: Exception = None):
+        """
+        Give advice about fatal error
+        """
+
+        showerror(
+            'Error', message,
+            parent=self,
+            detail=f'Exit code {error_code}\n{details}')
+        sys_exit(error_code)
+
+    def exit_confirm(self, exit_code: int = 0):
+        """
+        Ask confirm before closing the program
+        """
+
+        if askokcancel('Confirm exit', 'Data can be losted.',
+                       detail=f'Exit code {exit_code}', parent=self):
+            sys_exit(exit_code)
+
+    # --------------------- Submit's --------------------- #
+
+    def submit_answer(self, team: str, question: int, answer: int):
         """
         The mehtod to submit answers
         """
 
-        if entered_question in self._NUMBER_OF_QUESTIONS_RANGE_1:
+        if question in self._NUMBER_OF_QUESTIONS_RANGE_1:
 
-            data_point_team = self._list_point[selected_team][entered_question]
-            data_question = self._solutions[entered_question]
+            data_point_team = self._list_point[team][question]
+            data_question = self._solutions[question]
 
             # if is unanswered
             if not data_point_team[1]:
 
                 # if correct
-                if entered_answer == data_question[0]:
+                if answer == data_question[0]:
 
                     data_point_team[1] = 1
 
@@ -527,10 +550,10 @@ class Main(Tk):
 
                     # give bonus
                     if sum(question[1]
-                            for question in self._list_point[selected_team][1:]
+                            for question in self._list_point[team][1:]
                            ) == self._NUMBER_OF_QUESTIONS:
 
-                        self._list_point[selected_team][0] += self._BONUS_FULLED[min(
+                        self._list_point[team][0] += self._BONUS_FULLED[min(
                             self._solutions[0], self._N_BONUS_FULLED)]
                         self._solutions[0] += 1
 
@@ -539,29 +562,28 @@ class Main(Tk):
                     data_point_team[0] += 1
                     data_question[2] += 1 if data_point_team[0] else 0
 
-            self._recorder.record_answer(
-                selected_team, self._timer_seconds, entered_question, entered_answer)
+        self.update_entry()
 
-            self.update_entry()
+        self.record_answer(
+            team, self._timer_seconds, question, answer)
 
-    def submit_jolly(self, selected_team: str, entered_question: int):
+    def submit_jolly(self, team: str, question: int):
         """
         The method to submit jolly
-
         """
 
-        if entered_question in self._NUMBER_OF_QUESTIONS_RANGE_1 and sum(question[2]
-                                                                         for question in self._list_point[selected_team][1:]
-                                                                         ) == 0:
+        # check if other jolly are already been given
+        if question in self._NUMBER_OF_QUESTIONS_RANGE_1 and not sum(question[2]
+                                                                     for question in self._list_point[team][1:]
+                                                                     ):
 
             # adding jolly
-            self._list_point[selected_team][entered_question][2] = 1
-            self._recorder.record_jolly(
-                selected_team, self._timer_seconds, entered_question)
+            self._list_point[team][question][2] = 1
+            self.record_jolly(team, self._timer_seconds, question)
 
             self.update_entry()
 
-    # methods to calculate points
+    # ---------------- Point's calculation ---------------- #
 
     def value_question(self, question: int) -> int:
         """
@@ -603,12 +625,12 @@ class ArbiterGUI(Toplevel):
         self.submit_jolly_main = main.submit_jolly
         self.submit_answer_main = main.submit_answer
 
-        self.tk.call('wm', 'title', self._w, 'Arbiter')
-        self.tk.call('wm', 'geometry', self._w, '250x250')
-        self.tk.call('wm', 'resizable', self._w, False, False)
+        self.title('Reciver')
+        self.geometry('250x290')
+        self.resizable(False, False)
 
         Label(self, text="Team:").pack()
-        self.team_var = StringVar(self)
+        self.team_var = StringVar()
         Combobox(
             self,
             textvariable=self.team_var,
@@ -618,11 +640,13 @@ class ArbiterGUI(Toplevel):
 
         Label(self, text="Question number:").pack()
         self.question_var = IntVar(self)
-        Entry(self, textvariable=self.question_var).pack()
+        Entry(self, textvariable=self.question_var,
+              validate='key', vcmd=(self.register(lambda text: 1 if text.isdigit() and 0 < int(text) < 24 else not text), '%P')).pack()
 
         Label(self, text="Answer:").pack()
         self.answer_var = IntVar(self)
-        Entry(self, textvariable=self.answer_var).pack()
+        Entry(self, textvariable=self.answer_var,
+              validate='key', vcmd=(self.register(lambda text: 1 if text.isdigit() and len(text) <= 4 else not text), '%P')).pack()
 
         self.jolly_button = Button(
             self, text="Submit Jolly", command=self.submit_jolly, state='disabled')
@@ -631,6 +655,9 @@ class ArbiterGUI(Toplevel):
         self.answer_button = Button(
             self, text="Submit Answer", command=self.submit_answer, state='disabled')
         self.answer_button.pack()
+
+        Label(self, text='Copyright (C) 2024 AstroMichi').pack(
+            side='bottom', anchor="e", padx=8, pady=8)
 
         self.protocol('WM_DELETE_WINDOW', lambda: None)
 
@@ -666,8 +693,5 @@ class ArbiterGUI(Toplevel):
 
 
 if __name__ == "__main__":
-
-    # from cProfile import run
-    # run('Main()')
 
     Main().mainloop()
